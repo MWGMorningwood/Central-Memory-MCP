@@ -139,6 +139,78 @@ Current `local.settings.json` configuration:
 }
 ```
 
+## 💾 Storage Configuration
+
+### Azure Blob Storage (Recommended for Production)
+
+The server supports Azure Blob Storage with managed system identity for secure, scalable memory storage:
+
+- **Workspace Isolation**: Each workspace/project gets its own memory file (`workspaces/{workspaceId}/memory.jsonl`)
+- **Managed Identity**: Secure authentication without connection strings
+- **Automatic Scaling**: Azure handles storage scaling and availability  
+- **Cost Effective**: Pay only for what you use
+- **Automatic Fallback**: Falls back to file storage if Azure Storage unavailable
+
+**Quick Setup:**
+
+1. Set environment variables:
+
+   ```bash
+   AZURE_STORAGE_ACCOUNT_NAME=your-storage-account
+   AZURE_STORAGE_CONTAINER_NAME=mcp-memory
+   ```
+
+2. Configure managed identity permissions (Storage Blob Data Contributor role)
+
+For detailed setup instructions, see [AZURE_BLOB_STORAGE_SETUP.md](./AZURE_BLOB_STORAGE_SETUP.md).
+
+### File System Storage (Development/Fallback)
+
+For development or when Azure Blob Storage is not available:
+
+```bash
+MEMORY_FILE_PATH=./data/memory.json
+```
+
+The system automatically creates workspace-specific files: `memory-{workspaceId}.jsonl`
+
+### Workspace Management
+
+**🔒 Each workspace/project gets its own isolated memory storage.**
+
+Specify workspace ID via:
+
+- **HTTP Header**: `x-workspace-id: my-project`
+- **URL Parameter**: `?workspace=my-project`  
+- **Alternative Headers**: `x-project-id`, `workspace-id`, `project-id`
+- **Default**: Uses `'default'` workspace if none specified
+
+**Storage Patterns:**
+
+- **Azure Blob**: `workspaces/{workspaceId}/memory.jsonl`
+- **File System**: `memory-{workspaceId}.jsonl`
+
+**Example Usage:**
+
+```bash
+# Create entities in "project-alpha" workspace
+curl -X POST http://localhost:7071/api/mcp \
+  -H "Content-Type: application/json" \
+  -H "x-workspace-id: project-alpha" \
+  -d '{"method": "tools/call", "params": {"name": "create_entities", ...}}'
+
+# Query "project-beta" workspace (completely separate)  
+curl -X POST http://localhost:7071/api/mcp?workspace=project-beta \
+  -H "Content-Type: application/json" \
+  -d '{"method": "tools/call", "params": {"name": "read_graph", ...}}'
+```
+
+**Testing Workspace Isolation:**
+
+```bash
+node test-workspace-isolation.js
+```
+
 ## 🚀 Deployment Options
 
 ### Option 1: Azure Functions

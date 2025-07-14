@@ -2,7 +2,10 @@
     "recommendations": [
         "ms-azuretools.vscode-azurefunctions",
         "ms-azuretools.vscode-azurestorage",
+        "ms-azuretools.vscode-azureresourcegroups",
+        "ms-azuretools.azure-dev",
         "azurite.azurite",
-        "christian-kohler.npm-intellisense"
+        "christian-kohler.npm-intellisense",
+        "ms-vscode.azure-account"
     ]
 }

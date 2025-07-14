@@ -1,5 +1,12 @@
 {
   "version": "2.0",
+  "extensions": {
+    "mcp": {
+        "instructions": "This server offers LLMs long-term memory storage capabilities about users, projects, and anything else needed. This should not entirely replace querying public information sources like Microsoft Docs or Context7.",
+        "serverName": "Central Memory MCP",
+        "serverVersion": "1.0.0"
+    }
+  },
   "logging": {
     "applicationInsights": {
       "samplingSettings": {
@@ -9,8 +16,8 @@
     }
   },
   "extensionBundle": {
-    "id": "Microsoft.Azure.Functions.ExtensionBundle",
-    "version": "[4.0.0, 5.0.0)"
+    "id": "Microsoft.Azure.Functions.ExtensionBundle.Experimental",
+    "version": "[4.*, 5.0.0)"
   },
   "functionTimeout": "00:05:00"
 }

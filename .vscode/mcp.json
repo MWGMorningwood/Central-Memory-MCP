@@ -8,14 +8,16 @@
             "type": "http",
             "url": "https://learn.microsoft.com/api/mcp"
         },
-        "sequentialthinking": {
-            "command": "docker",
+        "sequential-thinking": {
+            "command": "npx",
             "args": [
-                "run",
-                "--rm",
-                "-i",
-                "mcp/sequentialthinking"
+                "-y",
+                "@modelcontextprotocol/server-sequential-thinking"
             ]
+        },
+        "memory-test": {
+            "type": "http",
+            "url": "http://localhost:7071/runtime/webhooks/mcp/sse"
         }
     }
 }
