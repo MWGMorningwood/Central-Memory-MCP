@@ -1,149 +1,121 @@
 import { InvocationContext } from '@azure/functions';
-import { KnowledgeGraphManager } from '../knowledgeGraphManager.js';
-import { Logger } from '../logger.js';
-import { getWorkspaceId, getUserId } from '../utils/mcpUtils.js';
+import { BaseMcpHandler, executeMcpHandler } from './baseMcpHandler.js';
 
-// Create Entities MCP Tool
+// Create Entities Handler
+class CreateEntitiesHandler extends BaseMcpHandler {
+  async execute(): Promise<string> {
+    return this.executeWithErrorHandling(async () => {
+      const args = this.getMcpArgs<{ entities?: string }>();
+      const entities = this.parseJsonArg(args.entities, 'entities');
+      this.validateArrayArg(entities, 'entities');
+
+      // Add user context to entities
+      const enhancedEntities = entities.map((entity: any) => ({
+        ...entity,
+        createdBy: entity.createdBy || this.userId,
+      }));
+
+      return await this.knowledgeGraphManager.createEntities(enhancedEntities, this.userId);
+    }, 'Failed to create entities');
+  }
+}
+
+// Search Entities Handler
+class SearchEntitiesHandler extends BaseMcpHandler {
+  async execute(): Promise<string> {
+    return this.executeWithErrorHandling(async () => {
+      const args = this.getMcpArgs<{ 
+        name?: string; 
+        entityType?: string; 
+        fuzzyMatch?: string; 
+      }>();
+
+      return await this.knowledgeGraphManager.searchEntities({
+        name: args.name,
+        entityType: args.entityType
+      });
+    }, 'Failed to search entities');
+  }
+}
+
+// Add Observation Handler
+class AddObservationHandler extends BaseMcpHandler {
+  async execute(): Promise<string> {
+    return this.executeWithErrorHandling(async () => {
+      const args = this.getMcpArgs<{ 
+        entityName?: string; 
+        observation?: string; 
+      }>();
+
+      if (!args.entityName || !args.observation) {
+        throw new Error('Both entityName and observation are required');
+      }
+
+      return await this.knowledgeGraphManager.addObservation(args.entityName, args.observation);
+    }, 'Failed to add observation');
+  }
+}
+
+// Update Entity Handler
+class UpdateEntityHandler extends BaseMcpHandler {
+  async execute(): Promise<string> {
+    return this.executeWithErrorHandling(async () => {
+      const args = this.getMcpArgs<{ 
+        entityName?: string; 
+        newObservations?: string; 
+        metadata?: string; 
+      }>();
+
+      if (!args.entityName) {
+        throw new Error('entityName is required');
+      }
+
+      const newObservations = args.newObservations ? this.parseJsonArg(args.newObservations, 'newObservations') : [];
+      const metadata = args.metadata ? this.parseJsonArg(args.metadata, 'metadata') : undefined;
+
+      return await this.knowledgeGraphManager.updateEntity(
+        args.entityName,
+        newObservations,
+        this.userId,
+        metadata
+      );
+    }, 'Failed to update entity');
+  }
+}
+
+// Delete Entity Handler
+class DeleteEntityHandler extends BaseMcpHandler {
+  async execute(): Promise<string> {
+    return this.executeWithErrorHandling(async () => {
+      const args = this.getMcpArgs<{ entityName?: string }>();
+
+      if (!args.entityName) {
+        throw new Error('entityName is required');
+      }
+
+      const result = await this.knowledgeGraphManager.deleteEntity(args.entityName);
+      return { success: result, entityName: args.entityName };
+    }, 'Failed to delete entity');
+  }
+}
+
+// Export the handler functions using the factory
 export async function createEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  const workspaceId = getWorkspaceId(context);
-  const userId = getUserId(context);
-  const logger = new Logger(context);
-  const knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace(workspaceId, logger);
-  
-  const mcptoolargs = context.triggerMetadata?.mcptoolargs as {
-    entities?: string;
-  };
-
-  if (!mcptoolargs?.entities) {
-    return JSON.stringify({ error: "No entities provided" });
-  }
-
-  try {
-    const entities = JSON.parse(mcptoolargs.entities);
-    
-    if (!Array.isArray(entities)) {
-      return JSON.stringify({ error: "Entities must be an array" });
-    }
-
-    // Add user context to entities
-    const enhancedEntities = entities.map(entity => ({
-      ...entity,
-      createdBy: entity.createdBy || userId,
-    }));
-
-    const createdEntities = await knowledgeGraphManager.createEntities(enhancedEntities);
-    return JSON.stringify(createdEntities, null, 2);
-  } catch (error) {
-    context.error('Failed to create entities', error);
-    return JSON.stringify({ error: "Failed to create entities", details: error });
-  }
+  return await executeMcpHandler(CreateEntitiesHandler, context);
 }
 
-// Search Entities MCP Tool
 export async function searchEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  const workspaceId = getWorkspaceId(context);
-  const logger = new Logger(context);
-  const knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace(workspaceId, logger);
-  
-  const mcptoolargs = context.triggerMetadata?.mcptoolargs as {
-    name?: string;
-    entityType?: string;
-  };
-
-  try {
-    const results = await knowledgeGraphManager.searchEntities({
-      name: mcptoolargs?.name,
-      entityType: mcptoolargs?.entityType,
-    });
-    
-    return JSON.stringify(results, null, 2);
-  } catch (error) {
-    context.error('Failed to search entities', error);
-    return JSON.stringify({ error: "Failed to search entities", details: error });
-  }
+  return await executeMcpHandler(SearchEntitiesHandler, context);
 }
 
-// Add Observation MCP Tool
 export async function addObservation(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  const workspaceId = getWorkspaceId(context);
-  const userId = getUserId(context);
-  const logger = new Logger(context);
-  const knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace(workspaceId, logger);
-  
-  const mcptoolargs = context.triggerMetadata?.mcptoolargs as {
-    entityName?: string;
-    observation?: string;
-  };
-
-  if (!mcptoolargs?.entityName || !mcptoolargs?.observation) {
-    return JSON.stringify({ error: "Entity name and observation are required" });
-  }
-
-  try {
-    const result = await knowledgeGraphManager.addObservation(
-      mcptoolargs.entityName,
-      mcptoolargs.observation
-    );
-    return JSON.stringify(result, null, 2);
-  } catch (error) {
-    context.error('Failed to add observation', error);
-    return JSON.stringify({ error: "Failed to add observation", details: error });
-  }
+  return await executeMcpHandler(AddObservationHandler, context);
 }
 
-// Delete Entity MCP Tool
-export async function deleteEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  const workspaceId = getWorkspaceId(context);
-  const logger = new Logger(context);
-  const knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace(workspaceId, logger);
-  
-  const mcptoolargs = context.triggerMetadata?.mcptoolargs as {
-    entityName?: string;
-  };
-
-  if (!mcptoolargs?.entityName) {
-    return JSON.stringify({ error: "Entity name is required" });
-  }
-
-  try {
-    const result = await knowledgeGraphManager.deleteEntity(mcptoolargs.entityName);
-    return JSON.stringify({ success: true, deletedEntity: result }, null, 2);
-  } catch (error) {
-    context.error('Failed to delete entity', error);
-    return JSON.stringify({ error: "Failed to delete entity", details: error });
-  }
-}
-
-// Update Entity MCP Tool
 export async function updateEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  const workspaceId = getWorkspaceId(context);
-  const userId = getUserId(context);
-  const logger = new Logger(context);
-  const knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace(workspaceId, logger);
-  
-  const mcptoolargs = context.triggerMetadata?.mcptoolargs as {
-    entityName?: string;
-    newObservations?: string;
-    metadata?: string;
-  };
+  return await executeMcpHandler(UpdateEntityHandler, context);
+}
 
-  if (!mcptoolargs?.entityName) {
-    return JSON.stringify({ error: "Entity name is required" });
-  }
-
-  try {
-    const newObservations = mcptoolargs.newObservations ? JSON.parse(mcptoolargs.newObservations) : [];
-    const metadata = mcptoolargs.metadata ? JSON.parse(mcptoolargs.metadata) : {};
-    
-    const result = await knowledgeGraphManager.updateEntity(
-      mcptoolargs.entityName,
-      newObservations, 
-      userId,
-      metadata
-    );
-    return JSON.stringify(result, null, 2);
-  } catch (error) {
-    context.error('Failed to update entity', error);
-    return JSON.stringify({ error: "Failed to update entity", details: error });
-  }
+export async function deleteEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+  return await executeMcpHandler(DeleteEntityHandler, context);
 }

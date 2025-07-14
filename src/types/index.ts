@@ -14,6 +14,7 @@ export interface Relation {
   to: string;
   relationType: string;
   createdAt?: string;
+  updatedAt?: string;
   createdBy?: string;  // User who created this relation
   strength?: number;   // Relationship strength/confidence (0-1)
   metadata?: Record<string, any>;  // Additional metadata

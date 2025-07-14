@@ -9,7 +9,7 @@ export async function healthHandler(request: HttpRequest, context: InvocationCon
   const logger = new Logger(context);
   
   try {
-    const knowledgeGraphManager = new KnowledgeGraphManager(MEMORY_FILE_PATH, logger);
+    const knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace('default', logger);
     const stats = await knowledgeGraphManager.getStats();
     
     return {

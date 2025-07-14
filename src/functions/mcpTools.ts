@@ -3,8 +3,8 @@ import { app } from '@azure/functions';
 // Import handlers
 import { createEntities, searchEntities, addObservation, deleteEntity, updateEntity } from '../services/handlers/entityHandlers.js';
 import { createRelations, searchRelations, searchRelationsByUser } from '../services/handlers/relationHandlers.js';
-import { getTemporalEvents, detectDuplicateEntities, mergeEntities, executeBatchOperations } from '../services/handlers/advancedHandlers.js';
-import { readGraph, getStats, clearMemory, getUserStats } from '../services/handlers/utilityHandlers.js';
+import { getTemporalEvents, detectDuplicateEntities, mergeEntities, executeBatchOperations, getUserStats } from '../services/handlers/advancedHandlers.js';
+import { readGraph, getStats, clearMemory } from '../services/handlers/utilityHandlers.js';
 
 // =============================================================================
 // MCP TOOL REGISTRATIONS
