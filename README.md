@@ -1,6 +1,7 @@
 # Central Memory MCP Server
 
-A centralized Model Cont## 📁 Project Structurext Protocol (MCP) memory server built with Azure Functions and TypeScript, providing persistent knowledge graph storage for AI assistants in VS Code.
+Model Context Protocol (MCP) memory server built with Azure Functions and TypeScript, providing persistent knowledge graph storage for AI assistants in VS Code.
+Inspired by and forked from [`@modelcontextprotocol/server-memory`](https://github.com/modelcontextprotocol/servers/tree/main/src/memory)
 
 ## 🚀 Quick Start
 
@@ -59,8 +60,8 @@ Built with:
 
 ```text
 src/
-├── functions/           # Azure Functions endpoints
-├── services/           # Business logic (storage, entities, relations)
+├── functions/         # Azure Functions endpoints
+├── services/          # Business logic (storage, entities, relations)
 ├── types/             # TypeScript definitions
 └── index.ts           # Main entry point
 ```
