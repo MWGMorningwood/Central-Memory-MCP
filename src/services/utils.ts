@@ -83,6 +83,53 @@ export async function executeGraphOperation<T>(
   return result;
 }
 
+/**
+ * Execute graph operation with full replacement (handles deletions)
+ */
+export async function executeGraphOperationWithReplacement<T>(
+  persistenceService: StorageService,
+  operation: (graph: KnowledgeGraph) => T,
+  shouldSave?: (result: T) => boolean
+): Promise<T> {
+  const graph = await persistenceService.loadGraph();
+  const result = operation(graph);
+  
+  // Check if result has updatedGraph and should be saved
+  if (result && typeof result === 'object' && 'updatedGraph' in result) {
+    if (!shouldSave || shouldSave(result)) {
+      // For delete operations, we need to replace the entire graph
+      const updatedGraph = (result as any).updatedGraph;
+      
+      // Find entities to delete
+      const entitiesToDelete = graph.entities.filter(current => 
+        !updatedGraph.entities.some((updated: any) => updated.name === current.name)
+      );
+      
+      // Find relations to delete
+      const relationsToDelete = graph.relations.filter(current => 
+        !updatedGraph.relations.some((updated: any) => 
+          updated.from === current.from && 
+          updated.to === current.to && 
+          updated.relationType === current.relationType
+        )
+      );
+      
+      // Delete obsolete entries
+      await Promise.all([
+        ...entitiesToDelete.map(entity => persistenceService.deleteEntity(entity.name)),
+        ...relationsToDelete.map(relation => 
+          persistenceService.deleteRelation(relation.from, relation.to, relation.relationType)
+        )
+      ]);
+      
+      // Upsert new/updated entries
+      await persistenceService.saveGraph(updatedGraph);
+    }
+  }
+  
+  return result;
+}
+
 // =============================================================================
 // MCP UTILITY FUNCTIONS
 // =============================================================================

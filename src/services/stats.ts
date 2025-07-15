@@ -296,7 +296,33 @@ export async function getStats(_toolArguments: unknown, context: InvocationConte
     
     const stats = await executeReadOnlyGraphOperation(
       storageService,
-      (graph) => generateGraphStats(graph, workspaceId)
+      (graph) => {
+        const entityTypes: Record<string, number> = {};
+        const relationTypes: Record<string, number> = {};
+        
+        // Count entity types
+        graph.entities.forEach(entity => {
+          entityTypes[entity.entityType] = (entityTypes[entity.entityType] || 0) + 1;
+        });
+        
+        // Count relation types
+        graph.relations.forEach(relation => {
+          relationTypes[relation.relationType] = (relationTypes[relation.relationType] || 0) + 1;
+        });
+        
+        // Calculate average observations per entity
+        const totalObservations = graph.entities.reduce((sum, entity) => sum + entity.observations.length, 0);
+        const averageObservationsPerEntity = graph.entities.length > 0 ? totalObservations / graph.entities.length : 0;
+        
+        return {
+          totalEntities: graph.entities.length,
+          totalRelations: graph.relations.length,
+          entityTypes,
+          relationTypes,
+          averageObservationsPerEntity,
+          workspaceId
+        };
+      }
     );
     
     return stats;
@@ -448,7 +474,44 @@ export async function getUserStats(_toolArguments: unknown, context: InvocationC
     
     const stats = await executeReadOnlyGraphOperation(
       storageService,
-      (graph) => generateUserStats(graph, userId)
+      (graph) => {
+        const userEntities = graph.entities.filter(e => e.createdBy === userId);
+        const userRelations = graph.relations.filter(r => r.createdBy === userId);
+        
+        // Get recent activity (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const recentEntities = userEntities.filter(e => 
+          e.createdAt && new Date(e.createdAt) > thirtyDaysAgo
+        );
+        const recentRelations = userRelations.filter(r => 
+          r.createdAt && new Date(r.createdAt) > thirtyDaysAgo
+        );
+        
+        // Count entity types
+        const topEntityTypes: Record<string, number> = {};
+        userEntities.forEach(entity => {
+          topEntityTypes[entity.entityType] = (topEntityTypes[entity.entityType] || 0) + 1;
+        });
+        
+        // Count relation types
+        const topRelationTypes: Record<string, number> = {};
+        userRelations.forEach(relation => {
+          topRelationTypes[relation.relationType] = (topRelationTypes[relation.relationType] || 0) + 1;
+        });
+        
+        return {
+          entitiesCreated: userEntities.length,
+          relationsCreated: userRelations.length,
+          recentActivity: {
+            entities: recentEntities,
+            relations: recentRelations
+          },
+          topEntityTypes,
+          topRelationTypes
+        };
+      }
     );
     
     return stats;

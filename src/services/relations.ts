@@ -9,69 +9,6 @@ import { getWorkspaceId, getUserId, executeGraphOperation } from './utils.js';
 // =============================================================================
 
 /**
- * Create new relations with validation and deduplication
- */
-export function createRelationsInGraph(
-  graph: KnowledgeGraph,
-  relations: Omit<Relation, 'createdAt'>[]
-): {
-  newRelations: Relation[];
-  updatedGraph: KnowledgeGraph;
-} {
-  const now = new Date().toISOString();
-  
-  const newRelations = relations
-    .filter(r => !graph.relations.some(existing => 
-      existing.from === r.from && 
-      existing.to === r.to && 
-      existing.relationType === r.relationType
-    ))
-    .map(r => ({
-      ...r,
-      createdAt: now,
-      updatedAt: now,
-      strength: r.strength || 0.8
-    }));
-
-  const updatedGraph = {
-    ...graph,
-    relations: [...graph.relations, ...newRelations]
-  };
-
-  return { newRelations, updatedGraph };
-}
-
-/**
- * Search relations by criteria
- */
-export function searchRelationsInGraph(
-  relations: Relation[],
-  query: { from?: string; to?: string; relationType?: string }
-): Relation[] {
-  return relations.filter(relation => {
-    const matchesFrom = !query.from || relation.from.toLowerCase().includes(query.from.toLowerCase());
-    const matchesTo = !query.to || relation.to.toLowerCase().includes(query.to.toLowerCase());
-    const matchesType = !query.relationType || relation.relationType.toLowerCase().includes(query.relationType.toLowerCase());
-    return matchesFrom && matchesTo && matchesType;
-  });
-}
-
-/**
- * Search relations by user who created them
- */
-export function searchRelationsByUserInGraph(
-  relations: Relation[],
-  userId: string,
-  relationType?: string
-): Relation[] {
-  return relations.filter(relation => {
-    const matchesUser = relation.createdBy === userId;
-    const matchesType = !relationType || relation.relationType.toLowerCase().includes(relationType.toLowerCase());
-    return matchesUser && matchesType;
-  });
-}
-
-/**
  * Update relation strength
  */
 export function updateRelationStrength(
@@ -255,7 +192,29 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
     // Execute graph operation
     const result = await executeGraphOperation(
       storageService,
-      (graph) => createRelationsInGraph(graph, enhancedRelations),
+      (graph) => {
+        const now = new Date().toISOString();
+        
+        const newRelations = enhancedRelations
+          .filter(r => !graph.relations.some(existing => 
+            existing.from === r.from && 
+            existing.to === r.to && 
+            existing.relationType === r.relationType
+          ))
+          .map(r => ({
+            ...r,
+            createdAt: now,
+            updatedAt: now,
+            strength: r.strength || 0.8
+          }));
+
+        const updatedGraph = {
+          ...graph,
+          relations: [...graph.relations, ...newRelations]
+        };
+
+        return { newRelations, updatedGraph };
+      },
       (result) => result.newRelations.length > 0
     );
     
@@ -276,11 +235,14 @@ export async function searchRelations(_toolArguments: unknown, context: Invocati
     
     const results = await executeReadOnlyGraphOperation(
       storageService,
-      (graph) => searchRelationsInGraph(graph.relations, {
-        from: args.from,
-        to: args.to,
-        relationType: args.relationType
-      })
+      (graph) => {
+        return graph.relations.filter(relation => {
+          const matchesFrom = !args.from || relation.from.toLowerCase().includes(args.from.toLowerCase());
+          const matchesTo = !args.to || relation.to.toLowerCase().includes(args.to.toLowerCase());
+          const matchesType = !args.relationType || relation.relationType.toLowerCase().includes(args.relationType.toLowerCase());
+          return matchesFrom && matchesTo && matchesType;
+        });
+      }
     );
     
     return results;
@@ -301,7 +263,13 @@ export async function searchRelationsByUser(_toolArguments: unknown, context: In
     
     const results = await executeReadOnlyGraphOperation(
       storageService,
-      (graph) => searchRelationsByUserInGraph(graph.relations, userId, args.relationType)
+      (graph) => {
+        return graph.relations.filter(relation => {
+          const matchesUser = relation.createdBy === userId;
+          const matchesType = !args.relationType || relation.relationType.toLowerCase().includes(args.relationType.toLowerCase());
+          return matchesUser && matchesType;
+        });
+      }
     );
     
     return results;

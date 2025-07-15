@@ -7,6 +7,7 @@ import {
   parseJsonArg, 
   validateArrayArg, 
   executeGraphOperation,
+  executeGraphOperationWithReplacement,
   getUserContext,
   enrichEntityWithUserContext,
   getWorkspaceId,
@@ -90,158 +91,6 @@ function levenshteinDistance(str1: string, str2: string): number {
   }
   
   return matrix[str2.length][str1.length];
-}
-
-/**
- * Create new entities in the knowledge graph
- */
-export function createEntitiesInGraph(
-  graph: KnowledgeGraph,
-  entities: { name: string; entityType: string; observations: string[] }[],
-  userId: string
-): { newEntities: Entity[]; updatedGraph: KnowledgeGraph } {
-  const newEntities: Entity[] = [];
-  const updatedEntities = [...graph.entities];
-
-  for (const entityData of entities) {
-    // Check if entity already exists
-    const existingEntity = updatedEntities.find(e => e.name === entityData.name);
-    
-    if (existingEntity) {
-      // Update existing entity with new observations
-      existingEntity.observations = [...new Set([...existingEntity.observations, ...entityData.observations])];
-      existingEntity.updatedAt = new Date().toISOString();
-      newEntities.push(existingEntity);
-    } else {
-      // Create new entity
-      const newEntity: Entity = {
-        name: entityData.name,
-        entityType: entityData.entityType,
-        observations: entityData.observations,
-        createdBy: userId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      updatedEntities.push(newEntity);
-      newEntities.push(newEntity);
-    }
-  }
-
-  return {
-    newEntities,
-    updatedGraph: { entities: updatedEntities, relations: graph.relations }
-  };
-}
-
-/**
- * Search entities by name or type
- */
-export function searchEntitiesInGraph(
-  entities: Entity[],
-  query: { name?: string; entityType?: string }
-): Entity[];
-export function searchEntitiesInGraph(entities: Entity[], query: string): Entity[];
-export function searchEntitiesInGraph(
-  entities: Entity[],
-  query: { name?: string; entityType?: string } | string
-): Entity[] {
-  if (typeof query === 'string') {
-    const searchTerm = query.toLowerCase();
-    return entities.filter(entity => {
-      return entity.name.toLowerCase().includes(searchTerm) ||
-             entity.entityType.toLowerCase().includes(searchTerm) ||
-             entity.observations.some(obs => obs.toLowerCase().includes(searchTerm));
-    });
-  }
-
-  return entities.filter(entity => {
-    const nameMatch = !query.name || entity.name.toLowerCase().includes(query.name.toLowerCase());
-    const typeMatch = !query.entityType || entity.entityType.toLowerCase().includes(query.entityType.toLowerCase());
-    return nameMatch && typeMatch;
-  });
-}
-
-/**
- * Add observation to an entity
- */
-export function addObservationToEntity(
-  graph: KnowledgeGraph,
-  entityName: string,
-  observation: string,
-  userId: string
-): { updatedEntity: Entity; updatedGraph: KnowledgeGraph } {
-  const entity = graph.entities.find(e => e.name === entityName);
-  if (!entity) {
-    throw new Error(`Entity '${entityName}' not found`);
-  }
-
-  // Add observation if not already present
-  if (!entity.observations.includes(observation)) {
-    entity.observations.push(observation);
-    entity.updatedAt = new Date().toISOString();
-  }
-
-  return {
-    updatedEntity: entity,
-    updatedGraph: { entities: graph.entities, relations: graph.relations }
-  };
-}
-
-/**
- * Delete an entity and all its relations
- */
-export function deleteEntityFromGraph(
-  graph: KnowledgeGraph,
-  entityName: string
-): { deleted: boolean; updatedGraph: KnowledgeGraph } {
-  const entityExists = graph.entities.some(e => e.name === entityName);
-  
-  if (!entityExists) {
-    throw new Error(`Entity '${entityName}' not found`);
-  }
-
-  const updatedEntities = graph.entities.filter(e => e.name !== entityName);
-  const updatedRelations = graph.relations.filter(r => 
-    r.from !== entityName && r.to !== entityName
-  );
-
-  return {
-    deleted: true,
-    updatedGraph: { entities: updatedEntities, relations: updatedRelations }
-  };
-}
-
-/**
- * Update an entity with new observations or metadata
- */
-export function updateEntityInGraph(
-  graph: KnowledgeGraph,
-  entityName: string,
-  newObservations: string[],
-  metadata?: Record<string, any>
-): { updatedEntity: Entity; updatedGraph: KnowledgeGraph } {
-  const entity = graph.entities.find(e => e.name === entityName);
-  if (!entity) {
-    throw new Error(`Entity '${entityName}' not found`);
-  }
-
-  // Add new observations
-  if (newObservations && newObservations.length > 0) {
-    entity.observations = [...new Set([...entity.observations, ...newObservations])];
-  }
-
-  // Update metadata if provided
-  if (metadata) {
-    Object.assign(entity, metadata);
-  }
-
-  entity.updatedAt = new Date().toISOString();
-
-  return {
-    updatedEntity: entity,
-    updatedGraph: { entities: graph.entities, relations: graph.relations }
-  };
 }
 
 /**
@@ -353,7 +202,40 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
     // Execute graph operation
     const result = await executeGraphOperation(
       storageService,
-      (graph) => createEntitiesInGraph(graph, enhancedEntities, userId),
+      (graph) => {
+        const newEntities: Entity[] = [];
+        const updatedEntities = [...graph.entities];
+
+        for (const entityData of enhancedEntities) {
+          // Check if entity already exists
+          const existingEntity = updatedEntities.find(e => e.name === entityData.name);
+          
+          if (existingEntity) {
+            // Update existing entity with new observations
+            existingEntity.observations = [...new Set([...existingEntity.observations, ...entityData.observations])];
+            existingEntity.updatedAt = new Date().toISOString();
+            newEntities.push(existingEntity);
+          } else {
+            // Create new entity
+            const newEntity: Entity = {
+              name: entityData.name,
+              entityType: entityData.entityType,
+              observations: entityData.observations,
+              createdBy: userId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            
+            updatedEntities.push(newEntity);
+            newEntities.push(newEntity);
+          }
+        }
+
+        return {
+          newEntities,
+          updatedGraph: { entities: updatedEntities, relations: graph.relations }
+        };
+      },
       (result) => result.newEntities.length > 0
     );
     
@@ -373,7 +255,13 @@ export async function searchEntities(_toolArguments: unknown, context: Invocatio
     const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const graph = await storageService.loadGraph();
-    const results = searchEntitiesInGraph(graph.entities, { name: args.name, entityType: args.entityType });
+    
+    // Search entities by name or type
+    const results = graph.entities.filter(entity => {
+      const nameMatch = !args.name || entity.name.toLowerCase().includes(args.name.toLowerCase());
+      const typeMatch = !args.entityType || entity.entityType.toLowerCase().includes(args.entityType.toLowerCase());
+      return nameMatch && typeMatch;
+    });
     
     return results;
   }, 'Failed to search entities');
@@ -398,7 +286,23 @@ export async function addObservation(_toolArguments: unknown, context: Invocatio
     
     const result = await executeGraphOperation(
       storageService,
-      (graph) => addObservationToEntity(graph, args.entityName!, args.observation!, userId),
+      (graph) => {
+        const entity = graph.entities.find(e => e.name === args.entityName);
+        if (!entity) {
+          throw new Error(`Entity '${args.entityName}' not found`);
+        }
+
+        // Add observation if not already present
+        if (!entity.observations.includes(args.observation!)) {
+          entity.observations.push(args.observation!);
+          entity.updatedAt = new Date().toISOString();
+        }
+
+        return {
+          updatedEntity: entity,
+          updatedGraph: { entities: graph.entities, relations: graph.relations }
+        };
+      },
       () => true
     );
     
@@ -422,13 +326,30 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
     const logger = new Logger(context);
     const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
-    const result = await executeGraphOperation(
+    // Execute graph operation with replacement to handle deletions
+    const result = await executeGraphOperationWithReplacement(
       storageService,
-      (graph) => deleteEntityFromGraph(graph, args.entityName!),
-      () => true
+      (graph) => {
+        const entityExists = graph.entities.some(e => e.name === args.entityName);
+        
+        if (!entityExists) {
+          throw new Error(`Entity '${args.entityName}' not found`);
+        }
+
+        const updatedEntities = graph.entities.filter(e => e.name !== args.entityName);
+        const updatedRelations = graph.relations.filter(r => 
+          r.from !== args.entityName && r.to !== args.entityName
+        );
+
+        return {
+          deleted: true,
+          updatedGraph: { entities: updatedEntities, relations: updatedRelations }
+        };
+      },
+      (result) => result.deleted
     );
     
-    return { success: result.deleted, message: `Entity '${args.entityName}' deleted successfully` };
+    return { success: true, message: `Entity '${args.entityName}' deleted successfully` };
   }, 'Failed to delete entity');
 }
 
@@ -453,7 +374,29 @@ export async function updateEntity(_toolArguments: unknown, context: InvocationC
     
     const result = await executeGraphOperation(
       storageService,
-      (graph) => updateEntityInGraph(graph, args.entityName!, newObservations, metadata),
+      (graph) => {
+        const entity = graph.entities.find(e => e.name === args.entityName);
+        if (!entity) {
+          throw new Error(`Entity '${args.entityName}' not found`);
+        }
+
+        // Add new observations
+        if (newObservations && newObservations.length > 0) {
+          entity.observations = [...new Set([...entity.observations, ...newObservations])];
+        }
+
+        // Update metadata if provided
+        if (metadata) {
+          Object.assign(entity, metadata);
+        }
+
+        entity.updatedAt = new Date().toISOString();
+
+        return {
+          updatedEntity: entity,
+          updatedGraph: { entities: graph.entities, relations: graph.relations }
+        };
+      },
       () => true
     );
     
