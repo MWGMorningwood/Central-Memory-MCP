@@ -1,6 +1,0 @@
-{"name":"Azure Functions","entityType":"technology","observations":["Microsoft serverless compute platform","Supports multiple languages including Node.js and TypeScript","Integrates with Azure services"],"createdAt":"2025-07-14T20:18:01.356Z","updatedAt":"2025-07-14T20:18:01.356Z"}
-{"name":"Model Context Protocol","entityType":"protocol","observations":["Allows LLMs to interface with external tools","Supports tool calling and resource access","Developed by Anthropic"],"createdAt":"2025-07-14T20:18:01.356Z","updatedAt":"2025-07-14T20:18:01.356Z"}
-{"name":"TypeScript","entityType":"programming_language","observations":["Strongly typed JavaScript superset","Compiles to JavaScript","Popular for enterprise applications"],"createdAt":"2025-07-14T20:18:01.356Z","updatedAt":"2025-07-14T20:18:01.356Z"}
-{"from":"Azure Functions","to":"TypeScript","relationType":"supports","strength":0.9,"createdBy":"LoganCook","createdAt":"2025-07-14T20:18:17.001Z"}
-{"from":"Azure Functions","to":"Model Context Protocol","relationType":"implements","strength":0.8,"createdBy":"LoganCook","createdAt":"2025-07-14T20:18:17.001Z"}
-{"from":"Model Context Protocol","to":"TypeScript","relationType":"built_with","strength":0.7,"createdBy":"LoganCook","createdAt":"2025-07-14T20:18:17.001Z"}
