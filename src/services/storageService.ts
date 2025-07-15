@@ -235,10 +235,10 @@ export class StorageService {
       );
     }
 
+    // DO NOT DIRECTLY LOG SENSITIVE INFORMATION
     this.logger.info('Storage Service initialized', { 
       workspaceId,
-      accountName: config.accountName,
-      useConnectionString: !!config.connectionString
+      accountName: config.accountName
     });
   }
 
