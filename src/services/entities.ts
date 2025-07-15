@@ -1,6 +1,6 @@
 import { InvocationContext } from '@azure/functions';
 import { Entity, KnowledgeGraph } from '../types/index.js';
-import { PersistenceService } from './persistenceService.js';
+import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
 import { 
   getMcpArgs, 
@@ -325,20 +325,20 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
     const userId = getUserId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     // Enhance entities with user context
     const enhancedEntities = enhanceEntitiesWithUser(entities, userId);
     
     // Execute graph operation
     const result = await executeGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => createEntitiesInGraph(graph, enhancedEntities, userId),
       (result) => result.newEntities.length > 0
     );
     
     return result.newEntities;
-  }, 'Failed to create entities');
+  });
 }
 
 /**
@@ -350,9 +350,9 @@ export async function searchEntities(_toolArguments: unknown, context: Invocatio
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
-    const graph = await persistenceService.loadGraph();
+    const graph = await storageService.loadGraph();
     const results = searchEntitiesInGraph(graph.entities, { name: args.name, entityType: args.entityType });
     
     return results;
@@ -374,10 +374,10 @@ export async function addObservation(_toolArguments: unknown, context: Invocatio
     const userId = getUserId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => addObservationToEntity(graph, args.entityName!, args.observation!, userId),
       () => true
     );
@@ -400,10 +400,10 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
     const workspaceId = args.workspaceId || 'default';
     
     const logger = new Logger();
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => deleteEntityFromGraph(graph, args.entityName!),
       () => true
     );
@@ -429,10 +429,10 @@ export async function updateEntity(_toolArguments: unknown, context: InvocationC
     const workspaceId = args.workspaceId || 'default';
     
     const logger = new Logger();
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => updateEntityInGraph(graph, args.entityName!, newObservations, metadata),
       () => true
     );

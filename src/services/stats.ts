@@ -1,10 +1,9 @@
 import { InvocationContext } from '@azure/functions';
 import { Entity, Relation, KnowledgeGraph } from '../types/index.js';
-import { PersistenceService } from './persistenceService.js';
+import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
-import { getWorkspaceId, getUserId } from './utils/mcpUtils.js';
+import { getWorkspaceId, getUserId, BatchUtils, executeGraphOperation } from './utils.js';
 import { calculateEntitySimilarity, mergeEntitiesInGraph, detectDuplicateEntities as detectDuplicateEntitiesInGraph } from './entities.js';
-import { BatchUtils } from './utils/batchUtils.js';
 
 // =============================================================================
 // STATISTICS UTILITIES
@@ -252,37 +251,13 @@ async function executeWithErrorHandling<T>(
 }
 
 /**
- * Helper function to execute graph operations with automatic save
- */
-async function executeGraphOperation<T>(
-  persistenceService: PersistenceService,
-  operation: (graph: KnowledgeGraph) => T,
-  saveCondition?: (result: T) => boolean
-): Promise<T> {
-  const graph = await persistenceService.loadGraph();
-  const result = operation(graph);
-  
-  // Check if result has updatedGraph and should be saved
-  if (
-    result && 
-    typeof result === 'object' && 
-    'updatedGraph' in result &&
-    (!saveCondition || saveCondition(result))
-  ) {
-    await persistenceService.saveGraph((result as any).updatedGraph);
-  }
-  
-  return result;
-}
-
-/**
  * Helper function to execute read-only graph operations
  */
 async function executeReadOnlyGraphOperation<T>(
-  persistenceService: PersistenceService,
+  storageService: StorageService,
   operation: (graph: KnowledgeGraph) => T
 ): Promise<T> {
-  const graph = await persistenceService.loadGraph();
+  const graph = await storageService.loadGraph();
   return operation(graph);
 }
 
@@ -298,10 +273,10 @@ export async function readGraph(_toolArguments: unknown, context: InvocationCont
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const graph = await executeReadOnlyGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => graph
     );
     
@@ -317,10 +292,10 @@ export async function getStats(_toolArguments: unknown, context: InvocationConte
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const stats = await executeReadOnlyGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => generateGraphStats(graph, workspaceId)
     );
     
@@ -336,9 +311,9 @@ export async function clearMemory(_toolArguments: unknown, context: InvocationCo
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
-    await persistenceService.clearMemory();
+    await storageService.clearMemory();
     
     return { success: true, message: "Memory cleared successfully" };
   }, 'Failed to clear memory');
@@ -361,12 +336,12 @@ export async function getTemporalEvents(_toolArguments: unknown, context: Invoca
     const userId = getUserId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const start = args.startTime || '1970-01-01T00:00:00.000Z';
     const end = args.endTime || new Date().toISOString();
     
-    const { entities, relations } = await persistenceService.getTemporalEvents(start, end);
+    const { entities, relations } = await storageService.getTemporalEvents(start, end);
     const filtered = filterTemporalEvents(entities, relations, { 
       entityName: args.entityName, 
       relationType: args.relationType, 
@@ -387,10 +362,10 @@ export async function detectDuplicateEntities(_toolArguments: unknown, context: 
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeReadOnlyGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => detectDuplicateEntitiesInGraph(graph, threshold)
     );
     
@@ -421,10 +396,10 @@ export async function mergeEntities(_toolArguments: unknown, context: Invocation
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => mergeEntitiesInGraph(graph, args.targetEntityName!, sourceEntityNames, mergeStrategy),
       () => true
     );
@@ -445,14 +420,14 @@ export async function executeBatchOperations(_toolArguments: unknown, context: I
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     // Note: BatchUtils.executeBatchOperations is async, so we handle the load/save pattern manually
-    const graph = await persistenceService.loadGraph();
+    const graph = await storageService.loadGraph();
     const result = await BatchUtils.executeBatchOperations(graph, operations);
     
     if (result.updatedGraph) {
-      await persistenceService.saveGraph(result.updatedGraph);
+      await storageService.saveGraph(result.updatedGraph);
     }
     
     return { successful: result.successful, failed: result.failed, errors: result.errors, results: result.results };
@@ -469,10 +444,10 @@ export async function getUserStats(_toolArguments: unknown, context: InvocationC
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const stats = await executeReadOnlyGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => generateUserStats(graph, userId)
     );
     

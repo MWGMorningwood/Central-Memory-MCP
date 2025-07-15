@@ -1,162 +1,25 @@
-// Data interfaces for the knowledge graph
-export interface Entity {
-  name: string;
-  entityType: string;
-  observations: string[];
-  createdAt?: string;
-  updatedAt?: string;
-  createdBy?: string;  // User who created this entity
-  metadata?: Record<string, any>;  // Additional metadata
-}
+/**
+ * Central type exports for the Central Memory MCP
+ * All types are organized into separate files for better maintainability
+ */
 
-export interface Relation {
-  from: string;
-  to: string;
-  relationType: string;
-  createdAt?: string;
-  updatedAt?: string;
-  createdBy?: string;  // User who created this relation
-  strength?: number;   // Relationship strength/confidence (0-1)
-  metadata?: Record<string, any>;  // Additional metadata
-}
+// Core domain types
+export * from './core.js';
 
-// Enhanced relationship types for Phase 2
-export type PreferenceRelationType = 'prefers' | 'dislikes' | 'interested_in';
-export type InteractionRelationType = 'asked_about' | 'discussed_with' | 'learned_from';
-export type TemporalRelationType = 'before' | 'after' | 'caused_by';
-export type ContextualRelationType = 'in_context_of' | 'related_to_project';
-export type ExpertiseRelationType = 'expert_in' | 'learning' | 'teaches';
-export type TechnicalRelationType = 'built_with' | 'depends_on' | 'implements';
+// Relation type definitions
+export * from './relations.js';
 
-export type EnhancedRelationType = 
-  | PreferenceRelationType 
-  | InteractionRelationType 
-  | TemporalRelationType 
-  | ContextualRelationType
-  | ExpertiseRelationType
-  | TechnicalRelationType;
+// Statistics types
+export * from './stats.js';
 
-export interface KnowledgeGraph {
-  entities: Entity[];
-  relations: Relation[];
-  version?: string;
-  lastModified?: string;
-}
+// Operation parameter types
+export * from './operations.js';
 
-export interface KnowledgeGraphStats {
-  entityCount: number;
-  relationCount: number;
-  entityTypes: Record<string, number>;
-  relationTypes: Record<string, number>;
-  userStats?: Record<string, { entities: number; relations: number }>;
-  lastModified?: string;
-}
+// Temporal query types
+export * from './temporal.js';
 
-// Tool operation interfaces
-export interface CreateEntitiesParams {
-  entities: Omit<Entity, 'createdAt' | 'updatedAt'>[];
-}
+// Batch operation types
+export * from './batch.js';
 
-export interface CreateRelationsParams {
-  relations: Omit<Relation, 'createdAt'>[];
-}
-
-export interface AddObservationsParams {
-  observations: {
-    entityName: string;
-    contents: string[];
-  }[];
-}
-
-export interface DeleteEntitiesParams {
-  entityNames: string[];
-}
-
-export interface DeleteObservationsParams {
-  deletions: {
-    entityName: string;
-    observations: string[];
-  }[];
-}
-
-export interface DeleteRelationsParams {
-  relations: Omit<Relation, 'createdAt'>[];
-}
-
-export interface SearchNodesParams {
-  query: string;
-}
-
-export interface OpenNodesParams {
-  names: string[];
-}
-
-export interface AddObservationResult {
-  entityName: string;
-  addedObservations: string[];
-}
-
-// Temporal query interfaces
-export interface TemporalQuery {
-  startTime?: string;
-  endTime?: string;
-  entityName?: string;
-  relationType?: string;
-  userId?: string;
-}
-
-export interface TemporalResult {
-  entities: (Entity & { actionType: 'created' | 'updated' })[];
-  relations: (Relation & { actionType: 'created' })[];
-  timeRange: { start: string; end: string };
-}
-
-// Entity merging interfaces
-export interface DuplicateDetectionResult {
-  duplicateGroups: {
-    entities: Entity[];
-    similarityScore: number;
-    suggestedMergeTarget: string;
-  }[];
-}
-
-export interface EntityMergeParams {
-  targetEntityName: string;
-  sourceEntityNames: string[];
-  mergeStrategy: 'combine' | 'replace' | 'manual';
-  keepObservations?: boolean;
-  keepMetadata?: boolean;
-}
-
-// Batch operation interfaces
-export interface BatchOperation {
-  type: 'create_entity' | 'create_relation' | 'update_entity' | 'delete_entity';
-  data: any;
-  userId?: string;
-}
-
-export interface BatchResult {
-  successful: number;
-  failed: number;
-  errors: string[];
-  results: any[];
-}
-
-// Storage and transformation utilities
-export interface StorageConfig {
-  accountName: string;
-  connectionString?: string;
-}
-
-export interface TemporalEventsResult {
-  entities: (Entity & { actionType: 'created' | 'updated' })[];
-  relations: (Relation & { actionType: 'created' | 'updated' })[];
-}
-
-export interface SearchQuery {
-  name?: string;
-  entityType?: string;
-  from?: string;
-  to?: string;
-  relationType?: string;
-}
+// Storage types
+export * from './storage.js';

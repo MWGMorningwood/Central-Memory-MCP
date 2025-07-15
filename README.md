@@ -1,358 +1,86 @@
-# Central Memory MCP Server (Azure Functions)
+# Central Memory MCP Server
 
-A centralized Model Context Protocol (MCP) memory server built with Azure Functions, designed to provide persistent knowledge graph storage for multiple developers' LLMs within an organization.
+A centralized Model Cont## 📁 Project Structurext Protocol (MCP) memory server built with Azure Functions and TypeScript, providing persistent knowledge graph storage for AI assistants in VS Code.
+
+## 🚀 Quick Start
+
+```bash
+npm install
+func start
+```
+
+### VS Code Integration
+
+1. **Install recommended extensions** from `.vscode/extensions.json`
+2. **MCP configuration** is ready in `.vscode/mcp.json`
+3. **Use `#memory-test` tools** in VS Code Copilot chat
+
+### Test the Server
+
+```bash
+# Health check
+curl http://localhost:7071/api/health
+
+# Use in VS Code Copilot:
+# #memory-test_create_entities
+# #memory-test_read_graph
+# #memory-test_search_entities
+```
+
+## 🔧 MCP Tools
+
+**Core Operations:**
+
+- `create_entities` - Create entities with observations
+- `create_relations` - Create relationships between entities
+- `read_graph` - Read the entire knowledge graph
+- `search_entities` / `search_relations` - Search by name/type
+- `add_observation` - Add observations to existing entities
+- `get_stats` - Get workspace statistics
+- `clear_memory` - Clear all workspace data
+
+**Advanced Features:**
+
+- `get_temporal_events` - Time-based activity tracking
+- `merge_entities` - Merge duplicate entities
+- `detect_duplicate_entities` - Find potential duplicates
+- `execute_batch_operations` - Batch multiple operations
 
 ## 🏗️ Architecture
 
-This MCP server is built using:
+Built with:
 
-- **Azure Functions v4** with TypeScript programming model
-- **Model Context Protocol (MCP) SDK v1.15.1** for standardized AI tool integration
-- **Knowledge Graph** storage using JSON-Lines format for persistence
-- **Production-ready** logging, health checks, and error handling
-- **Zod** for input validation and type safety
+- **Azure Functions v4** with TypeScript
+- **Azure Table Storage** for persistent data (via Azurite locally)
+- **Model Context Protocol (MCP)** for VS Code integration
+- **Workspace isolation** - each project gets separate storage
 
-## 📁 Project Structure
+## � Project Structure
 
 ```text
-├── src/
-│   ├── functions/                    # Azure Functions
-│   │   ├── mcp.ts                   # Main MCP endpoint (GET/POST /api/mcp)
-│   │   ├── health.ts                # Health check endpoint (/api/health)
-│   │   └── ready.ts                 # Readiness probe (/api/ready)
-│   ├── services/                    # Business logic services
-│   │   ├── knowledgeGraphManager.ts # Core knowledge graph operations
-│   │   ├── logger.ts                # Centralized logging service
-│   │   └── mcpServerService.ts      # MCP server setup (backup)
-│   └── types/                       # TypeScript type definitions
-│       └── index.ts                 # Entity, Relation, KnowledgeGraph types
-├── index.express.backup.ts          # Original Express.js implementation (backup)
-├── host.json                        # Azure Functions host configuration
-├── local.settings.json              # Local development settings
-├── tsconfig.json                    # TypeScript configuration
-├── Dockerfile                       # Container deployment option
-└── package.json                     # Dependencies and scripts
+src/
+├── functions/           # Azure Functions endpoints
+├── services/           # Business logic (storage, entities, relations)
+├── types/             # TypeScript definitions
+└── index.ts           # Main entry point
 ```
 
-## 🚀 Getting Started
+## 📚 Documentation
 
-### Prerequisites
+For detailed information, see the `.docs/` folder:
 
-- Node.js 18+
-- Azure Functions Core Tools v4
-- Azure account (for deployment)
+- **[Architecture Guide](.docs/ARCHITECTURE.md)** - Technical design and patterns
+- **[API Reference](.docs/API.md)** - Complete endpoint documentation
+- **[Storage Guide](.docs/STORAGE.md)** - Storage configuration and workspace management
+- **[Deployment Guide](.docs/DEPLOYMENT.md)** - Production deployment options
 
-### Local Development
+## 🔒 Production Notes
 
-1. **Install dependencies:**
-
-   ```bash
-   npm install
-   ```
-
-2. **Build the project:**
-
-   ```bash
-   npm run build
-   ```
-
-3. **Start Azure Functions locally:**
-
-   ```bash
-   npm start
-   ```
-
-4. **Test the server:**
-
-   ```bash
-   # Health check
-   curl http://localhost:7071/api/health
-   
-   # Readiness probe
-   curl http://localhost:7071/api/ready
-   
-   # MCP endpoint
-   curl -X POST http://localhost:7071/api/mcp \
-     -H "Content-Type: application/json" \
-     -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-   ```
-
-## 🔧 Available MCP Tools
-
-The server provides these MCP tools for knowledge graph management:
-
-### Core Operations
-
-- **`create_entities`** - Create new entities with observations
-- **`create_relations`** - Create relationships between entities  
-- **`add_observations`** - Add new observations to existing entities
-
-### Query Operations
-
-- **`read_graph`** - Read the entire knowledge graph
-- **`search_nodes`** - Search entities by name, type, or observation content
-- **`open_nodes`** - Retrieve specific entities by name
-- **`get_stats`** - Get graph statistics (entity count, relation count, etc.)
-
-### Maintenance Operations
-
-- **`delete_entities`** - Remove entities and their relations
-- **`delete_observations`** - Remove specific observations from entities
-- **`delete_relations`** - Remove specific relationships
-
-## 🌐 API Endpoints
-
-### MCP Endpoint
-
-- **POST/GET** `/api/mcp` - Main MCP endpoint supporting JSON-RPC protocol
-- Supports both POST (request body) and GET (query params) per MCP specification
-
-### Health & Monitoring
-
-- **GET** `/api/health` - Health check with knowledge graph statistics
-- **GET** `/api/ready` - Readiness probe for container orchestration
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MEMORY_FILE_PATH` | Path to knowledge graph storage file | `./data/memory.json` |
-| `NODE_ENV` | Environment (development/production) | `development` |
-| `AzureWebJobsStorage` | Azure Storage connection string | `UseDevelopmentStorage=true` |
-| `FUNCTIONS_WORKER_RUNTIME` | Functions runtime | `node` |
-
-### Local Settings
-
-Current `local.settings.json` configuration:
-
-```json
-{
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "node",
-    "NODE_ENV": "development",
-    "MEMORY_FILE_PATH": "./data/memory.json"
-  }
-}
-```
-
-## 💾 Storage Configuration
-
-### Azure Blob Storage (Recommended for Production)
-
-The server supports Azure Blob Storage with managed system identity for secure, scalable memory storage:
-
-- **Workspace Isolation**: Each workspace/project gets its own memory file (`workspaces/{workspaceId}/memory.jsonl`)
-- **Managed Identity**: Secure authentication without connection strings
-- **Automatic Scaling**: Azure handles storage scaling and availability  
-- **Cost Effective**: Pay only for what you use
-- **Automatic Fallback**: Falls back to file storage if Azure Storage unavailable
-
-**Quick Setup:**
-
-1. Set environment variables:
-
-   ```bash
-   AZURE_STORAGE_ACCOUNT_NAME=your-storage-account
-   AZURE_STORAGE_CONTAINER_NAME=mcp-memory
-   ```
-
-2. Configure managed identity permissions (Storage Blob Data Contributor role)
-
-For detailed setup instructions, see [AZURE_BLOB_STORAGE_SETUP.md](./AZURE_BLOB_STORAGE_SETUP.md).
-
-### File System Storage (Development/Fallback)
-
-For development or when Azure Blob Storage is not available:
-
-```bash
-MEMORY_FILE_PATH=./data/memory.json
-```
-
-The system automatically creates workspace-specific files: `memory-{workspaceId}.jsonl`
-
-### Workspace Management
-
-**🔒 Each workspace/project gets its own isolated memory storage.**
-
-Specify workspace ID via:
-
-- **HTTP Header**: `x-workspace-id: my-project`
-- **URL Parameter**: `?workspace=my-project`  
-- **Alternative Headers**: `x-project-id`, `workspace-id`, `project-id`
-- **Default**: Uses `'default'` workspace if none specified
-
-**Storage Patterns:**
-
-- **Azure Blob**: `workspaces/{workspaceId}/memory.jsonl`
-- **File System**: `memory-{workspaceId}.jsonl`
-
-**Example Usage:**
-
-```bash
-# Create entities in "project-alpha" workspace
-curl -X POST http://localhost:7071/api/mcp \
-  -H "Content-Type: application/json" \
-  -H "x-workspace-id: project-alpha" \
-  -d '{"method": "tools/call", "params": {"name": "create_entities", ...}}'
-
-# Query "project-beta" workspace (completely separate)  
-curl -X POST http://localhost:7071/api/mcp?workspace=project-beta \
-  -H "Content-Type: application/json" \
-  -d '{"method": "tools/call", "params": {"name": "read_graph", ...}}'
-```
-
-**Testing Workspace Isolation:**
-
-```bash
-node test-workspace-isolation.js
-```
-
-## 🚀 Deployment Options
-
-### Option 1: Azure Functions
-
-1. **Login to Azure:**
-
-   ```bash
-   az login
-   ```
-
-2. **Deploy using npm script:**
-
-   ```bash
-   npm run deploy
-   ```
-
-### Option 2: Container Deployment
-
-The project includes a `Dockerfile` for containerized deployment:
-
-```bash
-# Build container
-docker build -t central-memory-mcp .
-
-# Run locally
-docker run -p 3000:3000 -e MEMORY_FILE_PATH=/tmp/memory.json central-memory-mcp
-
-# Deploy to Azure Container Apps
-az containerapp create --name central-memory-mcp --image central-memory-mcp
-```
-
-## 🔍 Usage Examples
-
-### Creating Entities
-
-```bash
-curl -X POST http://localhost:7071/api/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-      "name": "create_entities",
-      "arguments": {
-        "entities": [
-          {
-            "name": "John Doe",
-            "entityType": "Person",
-            "observations": ["Software developer", "Works on Azure projects"]
-          }
-        ]
-      }
-    }
-  }'
-```
-
-### Searching the Knowledge Graph
-
-```bash
-curl -X POST http://localhost:7071/api/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 2,
-    "method": "tools/call",
-    "params": {
-      "name": "search_nodes",
-      "arguments": {
-        "query": "Azure"
-      }
-    }
-  }'
-```
-
-## 📋 Data Storage
-
-- **Format**: JSON-Lines (JSONL) for easy parsing and debugging
-- **Location**: Configurable via `MEMORY_FILE_PATH` environment variable
-- **Structure**: Each line contains either an entity or relation object with type indicator
-- **Persistence**: File-based storage with automatic directory creation
-
-## 🎯 KISS Principles Applied
-
-This implementation follows **Keep It Simple, Stupid** principles:
-
-- **Single Responsibility**: Each function and service has one clear purpose
-- **Minimal Dependencies**: Only essential packages (@azure/functions, MCP SDK, zod)
-- **Clear Structure**: Logical separation of functions, services, and types
-- **Simple Storage**: JSON-Lines format for easy debugging and migration
-- **Straightforward API**: Standard MCP protocol implementation
-
-## 🔒 Production Considerations
-
-### Security
-
-- Add Azure AD authentication for production deployment
-- Implement API key validation for public endpoints
-- Consider request rate limiting
-
-### Storage
-
-- **Development**: Local file storage (`./data/memory.json`)
-- **Production**: Consider Azure Blob Storage or Cosmos DB for scalability
-- **Backup**: Implement automated backup strategy for knowledge graph data
-
-### Monitoring
-
-- Leverage Application Insights for telemetry and monitoring
-- Azure Functions provides built-in metrics and logging
-- Health endpoint returns graph statistics for monitoring
-
-### Scaling
-
-- Azure Functions auto-scale based on demand
-- Consider connection pooling for high-throughput scenarios
-- Monitor memory usage for large knowledge graphs
-
-## 🔧 Development
-
-### Available Scripts
-
-- `npm run build` - Compile TypeScript to JavaScript
-- `npm run watch` - Watch mode for development
-- `npm start` - Start Azure Functions locally (runs build first)
-- `npm run deploy` - Deploy to Azure Functions
-
-### File Structure Details
-
-- **Functions**: Each Azure Function is in its own file with proper registration
-- **Services**: Business logic separated from HTTP handling
-- **Types**: Comprehensive TypeScript interfaces for type safety
-- **Backup**: Original Express.js implementation preserved as `index.express.backup.ts`
+- Uses Azure Table Storage with managed identity for security
+- Workspace isolation prevents data leakage between projects
+- Health endpoints for monitoring and container orchestration
+- Automatic fallback to local storage for development
 
 ## 📝 License
 
 MIT License - see LICENSE file for details.
-
-## 🆘 Support
-
-For issues and questions:
-
-- Check Azure Functions documentation
-- Review MCP specification at [modelcontextprotocol.io](https://modelcontextprotocol.io)
-- Open an issue in this repository

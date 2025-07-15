@@ -1,8 +1,8 @@
 import { InvocationContext } from '@azure/functions';
 import { Relation, KnowledgeGraph } from '../types/index.js';
-import { PersistenceService } from './persistenceService.js';
+import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
-import { getWorkspaceId, getUserId } from './utils/mcpUtils.js';
+import { getWorkspaceId, getUserId, executeGraphOperation } from './utils.js';
 
 // =============================================================================
 // RELATION UTILITIES
@@ -220,37 +220,13 @@ async function executeWithErrorHandling<T>(
 }
 
 /**
- * Helper function to execute graph operations with automatic save
- */
-async function executeGraphOperation<T>(
-  persistenceService: PersistenceService,
-  operation: (graph: KnowledgeGraph) => T,
-  saveCondition?: (result: T) => boolean
-): Promise<T> {
-  const graph = await persistenceService.loadGraph();
-  const result = operation(graph);
-  
-  // Check if result has updatedGraph and should be saved
-  if (
-    result && 
-    typeof result === 'object' && 
-    'updatedGraph' in result &&
-    (!saveCondition || saveCondition(result))
-  ) {
-    await persistenceService.saveGraph((result as any).updatedGraph);
-  }
-  
-  return result;
-}
-
-/**
  * Helper function to execute read-only graph operations
  */
 async function executeReadOnlyGraphOperation<T>(
-  persistenceService: PersistenceService,
+  storageService: StorageService,
   operation: (graph: KnowledgeGraph) => T
 ): Promise<T> {
-  const graph = await persistenceService.loadGraph();
+  const graph = await storageService.loadGraph();
   return operation(graph);
 }
 
@@ -271,14 +247,14 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
     const userId = getUserId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     // Enhance relations with user context
     const enhancedRelations = enhanceRelationsWithUser(relations, userId);
     
     // Execute graph operation
     const result = await executeGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => createRelationsInGraph(graph, enhancedRelations),
       (result) => result.newRelations.length > 0
     );
@@ -296,10 +272,10 @@ export async function searchRelations(_toolArguments: unknown, context: Invocati
     const workspaceId = getWorkspaceId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const results = await executeReadOnlyGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => searchRelationsInGraph(graph.relations, {
         from: args.from,
         to: args.to,
@@ -321,10 +297,10 @@ export async function searchRelationsByUser(_toolArguments: unknown, context: In
     const userId = args.userId || getUserId(context);
     
     const logger = new Logger(context);
-    const persistenceService = await PersistenceService.createForWorkspace(workspaceId, logger);
+    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const results = await executeReadOnlyGraphOperation(
-      persistenceService,
+      storageService,
       (graph) => searchRelationsByUserInGraph(graph.relations, userId, args.relationType)
     );
     

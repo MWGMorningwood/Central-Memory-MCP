@@ -1,5 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { PersistenceService } from '../services/persistenceService.js';
+import { StorageService } from '../services/storageService.js';
 import { Logger } from '../services/logger.js';
 import { generateGraphStats } from '../services/stats.js';
 
@@ -10,10 +10,10 @@ export async function healthHandler(request: HttpRequest, context: InvocationCon
   const logger = new Logger(context);
   
   try {
-    // DRY: Use PersistenceService and generateGraphStats directly instead of knowledgeGraphManager
-    const persistenceService = await PersistenceService.createForWorkspace('default', logger);
-    const graph = await persistenceService.loadGraph();
-    const stats = generateGraphStats(graph, persistenceService.getWorkspaceId());
+    // DRY: Use StorageService and generateGraphStats directly instead of knowledgeGraphManager
+    const storageService = await StorageService.createForWorkspace('default', logger);
+    const graph = await storageService.loadGraph();
+    const stats = generateGraphStats(graph, storageService.getWorkspaceId());
     
     return {
       status: 200,

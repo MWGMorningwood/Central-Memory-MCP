@@ -1,7 +1,7 @@
 import { InvocationContext } from '@azure/functions';
 import { Entity, Relation, KnowledgeGraph } from '../types/index.js';
 import { Logger } from './logger.js';
-import { PersistenceService } from './persistenceService.js';
+import { StorageService } from './storageService.js';
 
 // =============================================================================
 // CENTRALIZED MCP HELPER FUNCTIONS
@@ -11,14 +11,21 @@ import { PersistenceService } from './persistenceService.js';
  * Extract MCP arguments from context with proper typing
  */
 export function getMcpArgs<T>(context: InvocationContext): T {
-  const request = context.extraInputs.get('mcpRequest');
-  return (request as any)?.params?.arguments || {} as T;
+  const args = context.triggerMetadata?.mcptoolargs;
+  if (!args || typeof args !== 'object') {
+    throw new Error('No MCP tool arguments found in context');
+  }
+  return args as T;
 }
 
 /**
  * Parse JSON argument with validation
  */
 export function parseJsonArg(arg: any, argName: string): any {
+  if (!arg) {
+    throw new Error(`Parameter '${argName}' is required`);
+  }
+  
   if (typeof arg === 'string') {
     try {
       return JSON.parse(arg);
@@ -43,16 +50,15 @@ export function validateArrayArg(arg: any, argName: string): void {
  */
 export async function executeWithErrorHandling<T>(
   operation: () => Promise<T>,
-  context: InvocationContext,
-  operationName: string
-): Promise<any> {
+  errorContext?: string
+): Promise<string> {
   try {
     const result = await operation();
-    return createMcpResponse(result);
+    return JSON.stringify(result);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    context.log.error(`${operationName} failed:`, error);
-    return createMcpResponse(null, errorMessage);
+    const contextualError = errorContext ? `${errorContext}: ${errorMessage}` : errorMessage;
+    throw new Error(contextualError);
   }
 }
 
@@ -60,26 +66,26 @@ export async function executeWithErrorHandling<T>(
  * Execute graph operation with persistence
  */
 export async function executeGraphOperation<T>(
-  persistenceService: PersistenceService,
-  operation: (graph: KnowledgeGraph) => Promise<{ result: T; updatedGraph: KnowledgeGraph }>
+  persistenceService: StorageService,
+  operation: (graph: KnowledgeGraph) => T,
+  shouldSave?: (result: T) => boolean
 ): Promise<T> {
   const graph = await persistenceService.loadGraph();
-  const { result, updatedGraph } = await operation(graph);
-  await persistenceService.saveGraph(updatedGraph);
+  const result = operation(graph);
+  
+  // Check if result has updatedGraph and should be saved
+  if (result && typeof result === 'object' && 'updatedGraph' in result) {
+    if (!shouldSave || shouldSave(result)) {
+      await persistenceService.saveGraph((result as any).updatedGraph);
+    }
+  }
+  
   return result;
 }
 
 // =============================================================================
-// LEGACY MCP UTILITY FUNCTIONS (maintaining compatibility)
+// MCP UTILITY FUNCTIONS
 // =============================================================================
-
-/**
- * Legacy function - use getMcpArgs<T> instead
- */
-export function getMcpArgs(context: InvocationContext): Record<string, any> {
-  const request = context.extraInputs.get('mcpRequest');
-  return (request as any)?.params?.arguments || {};
-}
 
 export function createMcpResponse(result: any, error?: string): any {
   if (error) {
@@ -108,21 +114,11 @@ export function validateRelationType(relationType: string): boolean {
 
 // Graph operation utilities
 export async function executeReadOnlyGraphOperation<T>(
-  persistenceService: PersistenceService,
-  operation: (graph: KnowledgeGraph) => Promise<T>
+  persistenceService: StorageService,
+  operation: (graph: KnowledgeGraph) => T
 ): Promise<T> {
   const graph = await persistenceService.loadGraph();
-  return await operation(graph);
-}
-
-export async function executeGraphOperation<T>(
-  persistenceService: PersistenceService,
-  operation: (graph: KnowledgeGraph) => Promise<T>
-): Promise<T> {
-  const graph = await persistenceService.loadGraph();
-  const result = await operation(graph);
-  await persistenceService.saveGraph(graph);
-  return result;
+  return operation(graph);
 }
 
 // User context utilities
@@ -386,9 +382,112 @@ export function getUserId(context: InvocationContext): string {
  * Enhance entities with user context
  */
 export function enhanceEntitiesWithUser(entities: any[], userId: string): any[] {
-  return entities.map(entity => ({
-    ...entity,
-    createdBy: userId,
-    lastUpdated: new Date().toISOString()
-  }));
+  return entities.map(entity => {
+    // Validate entity structure before enhancing
+    validateEntity(entity);
+    
+    return {
+      ...entity,
+      createdBy: userId,
+      updatedAt: new Date().toISOString(),
+      createdAt: entity.createdAt || new Date().toISOString()
+    };
+  });
+}
+
+// =============================================================================
+// BATCH OPERATION UTILITIES
+// =============================================================================
+
+export class BatchUtils {
+  static async executeBatchOperations(graph: KnowledgeGraph, operations: any[]): Promise<any> {
+    const results = [];
+    
+    for (const operation of operations) {
+      try {
+        let result;
+        
+        switch (operation.type) {
+          case 'create_entity':
+            const newEntity = operation.entity;
+            if (!graph.entities.find(e => e.name === newEntity.name)) {
+              graph.entities.push(newEntity);
+              result = { success: true, entity: newEntity };
+            } else {
+              result = { success: false, error: 'Entity already exists' };
+            }
+            break;
+            
+          case 'create_relation':
+            const newRelation = operation.relation;
+            graph.relations.push(newRelation);
+            result = { success: true, relation: newRelation };
+            break;
+            
+          case 'update_entity':
+            const entityIndex = graph.entities.findIndex(e => e.name === operation.entityName);
+            if (entityIndex !== -1) {
+              graph.entities[entityIndex] = {
+                ...graph.entities[entityIndex],
+                ...operation.updates
+              };
+              result = { success: true, entity: graph.entities[entityIndex] };
+            } else {
+              result = { success: false, error: 'Entity not found' };
+            }
+            break;
+            
+          case 'delete_entity':
+            const entityToDeleteIndex = graph.entities.findIndex(e => e.name === operation.entityName);
+            if (entityToDeleteIndex !== -1) {
+              graph.entities.splice(entityToDeleteIndex, 1);
+              // Also remove related relations
+              graph.relations = graph.relations.filter(
+                rel => rel.from !== operation.entityName && rel.to !== operation.entityName
+              );
+              result = { success: true };
+            } else {
+              result = { success: false, error: 'Entity not found' };
+            }
+            break;
+            
+          default:
+            result = { success: false, error: `Unknown operation type: ${operation.type}` };
+        }
+        
+        results.push(result);
+      } catch (error) {
+        results.push({ 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+    }
+    
+    return {
+      results,
+      updatedGraph: graph
+    };
+  }
+}
+
+/**
+ * Validate entity structure
+ */
+export function validateEntity(entity: any): void {
+  if (!entity || typeof entity !== 'object') {
+    throw new Error('Entity must be an object');
+  }
+  
+  if (!entity.name || typeof entity.name !== 'string') {
+    throw new Error('Entity must have a name (string)');
+  }
+  
+  if (!entity.entityType || typeof entity.entityType !== 'string') {
+    throw new Error('Entity must have an entityType (string)');
+  }
+  
+  if (!entity.observations || !Array.isArray(entity.observations)) {
+    throw new Error('Entity must have observations (array)');
+  }
 }
