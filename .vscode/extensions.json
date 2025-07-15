@@ -6,6 +6,6 @@
         "ms-azuretools.azure-dev",
         "azurite.azurite",
         "christian-kohler.npm-intellisense",
-        "ms-vscode.azure-account"
+        "ms-azuretools.vscode-azureresourcegroups"
     ]
 }

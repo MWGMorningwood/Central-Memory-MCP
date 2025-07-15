@@ -6,7 +6,6 @@ import {
   getMcpArgs, 
   parseJsonArg, 
   validateArrayArg, 
-  executeWithErrorHandling,
   executeGraphOperation,
   getUserContext,
   enrichEntityWithUserContext,
@@ -14,6 +13,27 @@ import {
   getUserId,
   enhanceEntitiesWithUser 
 } from './utils.js';
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Execute operation with standardized error handling
+ */
+async function executeWithErrorHandling<T>(
+  operation: () => Promise<T>,
+  errorMessage: string
+): Promise<string> {
+  try {
+    const result = await operation();
+    return JSON.stringify(result);
+  } catch (error) {
+    const logger = new Logger();
+    logger.error(errorMessage, error);
+    throw error;
+  }
+}
 
 // =============================================================================
 // ENTITY UTILITIES
@@ -338,7 +358,7 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
     );
     
     return result.newEntities;
-  });
+  }, 'Failed to create entities');
 }
 
 /**
@@ -397,9 +417,9 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
       throw new Error('entityName is required');
     }
     
-    const workspaceId = args.workspaceId || 'default';
+    const workspaceId = getWorkspaceId(context);
     
-    const logger = new Logger();
+    const logger = new Logger(context);
     const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeGraphOperation(
@@ -408,7 +428,7 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
       () => true
     );
     
-    return { success: true, message: `Entity '${args.entityName}' deleted successfully` };
+    return { success: result.deleted, message: `Entity '${args.entityName}' deleted successfully` };
   }, 'Failed to delete entity');
 }
 
@@ -426,9 +446,9 @@ export async function updateEntity(_toolArguments: unknown, context: InvocationC
     const newObservations = args.newObservations ? parseJsonArg(args.newObservations, 'newObservations') : [];
     const metadata = args.metadata ? parseJsonArg(args.metadata, 'metadata') : undefined;
     
-    const workspaceId = args.workspaceId || 'default';
+    const workspaceId = getWorkspaceId(context);
     
-    const logger = new Logger();
+    const logger = new Logger(context);
     const storageService = await StorageService.createForWorkspace(workspaceId, logger);
     
     const result = await executeGraphOperation(

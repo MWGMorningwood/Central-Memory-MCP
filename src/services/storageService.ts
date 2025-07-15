@@ -160,9 +160,26 @@ export class StorageService {
    * Factory method to create a workspace-specific StorageService
    */
   static async createForWorkspace(workspaceId: string, logger: Logger): Promise<StorageService> {
-    // Handle development storage case
+    // First check if we have Azure Storage account configured - prioritize real storage
+    if (AZURE_STORAGE_ACCOUNT_NAME) {
+      logger.info(`Using Azure Storage account: ${AZURE_STORAGE_ACCOUNT_NAME}`);
+      try {
+        const service = new StorageService(workspaceId, logger, {
+          accountName: AZURE_STORAGE_ACCOUNT_NAME,
+          connectionString: AZURE_STORAGE_CONNECTION_STRING
+        });
+
+        await service.initialize();
+        return service;
+      } catch (error) {
+        logger.error('Failed to initialize Azure Table Storage', error);
+        throw error;
+      }
+    }
+
+    // Fall back to development storage if no Azure Storage account is configured
     if (isUsingDevelopmentStorage) {
-      logger.info('Using development storage (Azurite)');
+      logger.info('Using development storage (Azurite) - no Azure Storage account configured');
       try {
         const service = new StorageService(workspaceId, logger, {
           accountName: 'devstoreaccount1',
@@ -177,23 +194,8 @@ export class StorageService {
       }
     }
 
-    // Handle production/cloud storage case
-    if (!AZURE_STORAGE_ACCOUNT_NAME) {
-      throw new Error('Azure Table Storage configuration required: AZURE_STORAGE_ACCOUNT_NAME must be set');
-    }
-
-    try {
-      const service = new StorageService(workspaceId, logger, {
-        accountName: AZURE_STORAGE_ACCOUNT_NAME,
-        connectionString: AZURE_STORAGE_CONNECTION_STRING
-      });
-
-      await service.initialize();
-      return service;
-    } catch (error) {
-      logger.error('Failed to initialize Azure Table Storage', error);
-      throw error;
-    }
+    // No storage configuration found
+    throw new Error('No storage configuration found. Either set AZURE_STORAGE_ACCOUNT_NAME for production or AzureWebJobsStorage=UseDevelopmentStorage=true for development.');
   }
 
   constructor(

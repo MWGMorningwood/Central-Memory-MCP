@@ -17,7 +17,7 @@
         },
         "memory-test": {
             "type": "http",
-            "url": "http://localhost:7071/runtime/webhooks/mcp/sse"
+            "url": "http://localhost:7071/runtime/webhooks/mcp/sse?workspace=Central-Memory-MCP"
         }
     }
 }
