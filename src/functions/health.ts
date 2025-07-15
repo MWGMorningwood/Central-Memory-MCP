@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { PersistenceService } from '../services/persistenceService.js';
 import { Logger } from '../services/logger.js';
-import { StatsUtils } from '../services/utils/index.js';
+import { generateGraphStats } from '../services/stats.js';
 
 // Environment configuration
 const MEMORY_FILE_PATH = process.env.MEMORY_FILE_PATH || '/tmp/memory.json';
@@ -10,10 +10,10 @@ export async function healthHandler(request: HttpRequest, context: InvocationCon
   const logger = new Logger(context);
   
   try {
-    // DRY: Use PersistenceService and StatsUtils directly instead of knowledgeGraphManager
+    // DRY: Use PersistenceService and generateGraphStats directly instead of knowledgeGraphManager
     const persistenceService = await PersistenceService.createForWorkspace('default', logger);
     const graph = await persistenceService.loadGraph();
-    const stats = StatsUtils.generateStats(graph, persistenceService.getWorkspaceId());
+    const stats = generateGraphStats(graph, persistenceService.getWorkspaceId());
     
     return {
       status: 200,

@@ -141,3 +141,22 @@ export interface BatchResult {
   errors: string[];
   results: any[];
 }
+
+// Storage and transformation utilities
+export interface StorageConfig {
+  accountName: string;
+  connectionString?: string;
+}
+
+export interface TemporalEventsResult {
+  entities: (Entity & { actionType: 'created' | 'updated' })[];
+  relations: (Relation & { actionType: 'created' | 'updated' })[];
+}
+
+export interface SearchQuery {
+  name?: string;
+  entityType?: string;
+  from?: string;
+  to?: string;
+  relationType?: string;
+}

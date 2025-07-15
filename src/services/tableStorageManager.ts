@@ -2,7 +2,97 @@ import { TableClient, TableEntity, odata } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
 import { Entity, Relation } from '../types/index.js';
 import { Logger } from './logger.js';
-import { TransformationUtils } from './utils/transformationUtils.js';
+
+// Table Storage transformation utilities
+class TransformationUtils {
+  static entityToTableEntity(entity: Entity, workspaceId: string): TableEntity {
+    return {
+      partitionKey: workspaceId,
+      rowKey: entity.name,
+      name: entity.name,
+      entityType: entity.entityType,
+      observations: JSON.stringify(entity.observations),
+      createdAt: entity.createdAt || new Date().toISOString(),
+      updatedAt: entity.updatedAt || new Date().toISOString(),
+      createdBy: entity.createdBy || 'default-user',
+      metadata: entity.metadata ? JSON.stringify(entity.metadata) : undefined,
+    };
+  }
+
+  static relationToTableEntity(relation: Relation, workspaceId: string): TableEntity {
+    const rowKey = `${relation.from}|${relation.to}|${relation.relationType}`;
+    return {
+      partitionKey: workspaceId,
+      rowKey,
+      from: relation.from,
+      to: relation.to,
+      relationType: relation.relationType,
+      createdAt: relation.createdAt || new Date().toISOString(),
+      updatedAt: relation.updatedAt || new Date().toISOString(),
+      createdBy: relation.createdBy || 'default-user',
+      strength: relation.strength,
+      metadata: relation.metadata ? JSON.stringify(relation.metadata) : undefined,
+    };
+  }
+
+  static tableEntityToEntity(tableEntity: any): Entity {
+    return {
+      name: tableEntity.name as string,
+      entityType: tableEntity.entityType as string,
+      observations: JSON.parse(tableEntity.observations as string || '[]'),
+      createdAt: tableEntity.createdAt as string,
+      updatedAt: tableEntity.updatedAt as string,
+      createdBy: tableEntity.createdBy as string,
+      metadata: tableEntity.metadata ? JSON.parse(tableEntity.metadata as string) : undefined,
+    };
+  }
+
+  static tableEntityToRelation(tableEntity: any): Relation {
+    return {
+      from: tableEntity.from as string,
+      to: tableEntity.to as string,
+      relationType: tableEntity.relationType as string,
+      createdAt: tableEntity.createdAt as string,
+      updatedAt: tableEntity.updatedAt as string,
+      createdBy: tableEntity.createdBy as string,
+      strength: tableEntity.strength as number,
+      metadata: tableEntity.metadata ? JSON.parse(tableEntity.metadata as string) : undefined,
+    };
+  }
+
+  static determineActionType(createdAt?: string, updatedAt?: string): 'created' | 'updated' {
+    if (!createdAt || !updatedAt) return 'created';
+    return createdAt === updatedAt ? 'created' : 'updated';
+  }
+}
+
+// Batch processing utilities
+class BatchOperationUtils {
+  static async executeBatch<T>(
+    items: T[],
+    processor: (batch: T[]) => Promise<void>,
+    batchSize: number,
+    logger: Logger
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await processor(batch);
+      logger.debug(`Processed batch ${Math.ceil(i / batchSize) + 1}/${Math.ceil(items.length / batchSize)}`);
+    }
+  }
+
+  static async processItems<T>(
+    items: T[],
+    singleProcessor: (item: T) => Promise<void>,
+    batchProcessor: (items: T[]) => Promise<void>
+  ): Promise<void> {
+    if (items.length === 1) {
+      await singleProcessor(items[0]);
+    } else {
+      await batchProcessor(items);
+    }
+  }
+}
 
 /**
  * Azure Table Storage manager for knowledge graph data
@@ -85,24 +175,19 @@ export class TableStorageManager {
         TransformationUtils.entityToTableEntity(entity, workspaceId)
       );
 
-      // Batch operations for better performance
-      const batchSize = 100; // Azure Table Storage limit
-      for (let i = 0; i < tableEntities.length; i += batchSize) {
-        const batch = tableEntities.slice(i, i + batchSize);
-        
-        if (batch.length === 1) {
-          // Single entity upsert
-          await this.entityTableClient.upsertEntity(batch[0]);
-        } else {
-          // Batch upsert - use individual upserts for now
-          await Promise.all(batch.map(entity => this.entityTableClient.upsertEntity(entity)));
-        }
-      }
-
-      this.logger.debug('Upserted entities', { 
-        workspaceId, 
-        count: entities.length 
-      });
+      // DRY: Use BatchOperationUtils for consistent batch processing
+      await BatchOperationUtils.executeBatch(
+        tableEntities,
+        async (batch) => {
+          await BatchOperationUtils.processItems(
+            batch,
+            async (entity) => { await this.entityTableClient.upsertEntity(entity); },
+            async (items) => { await Promise.all(items.map(entity => this.entityTableClient.upsertEntity(entity))); }
+          );
+        },
+        100, // Azure Table Storage batch limit
+        this.logger
+      );
     } catch (error) {
       this.logger.error('Failed to upsert entities', error);
       throw error;
@@ -118,23 +203,19 @@ export class TableStorageManager {
         TransformationUtils.relationToTableEntity(relation, workspaceId)
       );
 
-      // Batch operations for better performance
-      const batchSize = 100;
-      for (let i = 0; i < tableRelations.length; i += batchSize) {
-        const batch = tableRelations.slice(i, i + batchSize);
-        
-        if (batch.length === 1) {
-          await this.relationTableClient.upsertEntity(batch[0]);
-        } else {
-          // Batch upsert - use individual upserts for now
-          await Promise.all(batch.map(relation => this.relationTableClient.upsertEntity(relation)));
-        }
-      }
-
-      this.logger.debug('Upserted relations', { 
-        workspaceId, 
-        count: relations.length 
-      });
+      // DRY: Use BatchOperationUtils for consistent batch processing
+      await BatchOperationUtils.executeBatch(
+        tableRelations,
+        async (batch) => {
+          await BatchOperationUtils.processItems(
+            batch,
+            async (relation) => { await this.relationTableClient.upsertEntity(relation); },
+            async (items) => { await Promise.all(items.map(relation => this.relationTableClient.upsertEntity(relation))); }
+          );
+        },
+        100, // Azure Table Storage batch limit
+        this.logger
+      );
     } catch (error) {
       this.logger.error('Failed to upsert relations', error);
       throw error;
