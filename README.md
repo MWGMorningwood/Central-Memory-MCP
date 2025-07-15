@@ -16,27 +16,44 @@ func start
 2. **MCP configuration** is ready in `.vscode/mcp.json`
 3. **Use `#memory-test` tools** in VS Code Copilot chat
 
+> **Note**: All MCP tools now use object parameters instead of JSON strings for better type safety and ease of use.
+
 ### Test the Server
 
 ```bash
 # Health check
 curl http://localhost:7071/api/health
 
-# Use in VS Code Copilot:
+# Use in VS Code Copilot with object parameters:
 # #memory-test_create_entities
 # #memory-test_read_graph
 # #memory-test_search_entities
+```
+
+### Example Usage in VS Code Copilot
+
+```text
+Create an entity:
+#memory-test_create_entities workspaceId="my-project" entities={"name": "Alice", "entityType": "Person", "observations": ["Software engineer"]}
+
+Create a relation:
+#memory-test_create_relations workspaceId="my-project" relations={"from": "Alice", "to": "React Project", "relationType": "worksOn"}
+
+Search entities:
+#memory-test_search_entities workspaceId="my-project" name="Alice"
 ```
 
 ## 🔧 MCP Tools
 
 **Core Operations:**
 
-- `create_entities` - Create entities with observations
-- `create_relations` - Create relationships between entities
+- `create_entities` - Create single entity with observations
+- `create_relations` - Create single relationship between entities
 - `read_graph` - Read the entire knowledge graph
 - `search_entities` / `search_relations` - Search by name/type
 - `add_observation` - Add observations to existing entities
+- `update_entity` - Update entity observations and metadata
+- `delete_entity` - Remove entity and all its relations
 - `get_stats` - Get workspace statistics
 - `clear_memory` - Clear all workspace data
 
@@ -46,6 +63,8 @@ curl http://localhost:7071/api/health
 - `merge_entities` - Merge duplicate entities
 - `detect_duplicate_entities` - Find potential duplicates
 - `execute_batch_operations` - Batch multiple operations
+- `get_user_stats` - Get user-specific statistics
+- `search_relations_by_user` - Find relations by user
 
 ## 🏗️ Architecture
 

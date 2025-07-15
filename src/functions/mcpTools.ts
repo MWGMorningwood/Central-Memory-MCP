@@ -12,7 +12,7 @@ import { getTemporalEvents, detectDuplicateEntities, mergeEntities, executeBatch
 // =============================================================================
 app.mcpTool('createEntities', {
   toolName: 'create_entities',
-  description: 'Create multiple new entities in the centralized knowledge graph for a specific workspace',
+  description: 'Create a new entity in the centralized knowledge graph for a specific workspace',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -21,8 +21,8 @@ app.mcpTool('createEntities', {
     },
     {
       propertyName: 'entities',
-      propertyType: 'string',
-      description: 'JSON string array of entities to create, each with name, entityType, and observations',
+      propertyType: 'object',
+      description: 'Single entity object to create with name, entityType, and observations',
     },
   ],
   handler: createEntities,
@@ -30,7 +30,7 @@ app.mcpTool('createEntities', {
 
 app.mcpTool('createRelations', {
   toolName: 'create_relations',
-  description: 'Create multiple new relations between entities in the knowledge graph for a specific workspace. Supports enhanced features like strength scoring and user attribution.',
+  description: 'Create a new relation between entities in the knowledge graph for a specific workspace. Supports enhanced features like strength scoring and user attribution.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -39,8 +39,8 @@ app.mcpTool('createRelations', {
     },
     {
       propertyName: 'relations',
-      propertyType: 'string',
-      description: 'JSON string array of relations to create, each with from, to, relationType, and optional strength/createdBy',
+      propertyType: 'object',
+      description: 'Single relation object to create with from, to, relationType, and optional strength/createdBy',
     },
   ],
   handler: createRelations,
@@ -193,13 +193,13 @@ app.mcpTool('updateEntity', {
     },
     {
       propertyName: 'newObservations',
-      propertyType: 'string',
-      description: 'JSON string array of new observations to add to the entity',
+      propertyType: 'object',
+      description: 'Single observation object to add to the entity',
     },
     {
       propertyName: 'metadata',
-      propertyType: 'string',
-      description: 'JSON string object of metadata fields to update',
+      propertyType: 'object',
+      description: 'Object containing metadata fields to update',
     },
   ],
   handler: updateEntity,
@@ -314,8 +314,8 @@ app.mcpTool('mergeEntities', {
     },
     {
       propertyName: 'sourceEntityNames',
-      propertyType: 'string',
-      description: 'JSON array of source entity names to merge from',
+      propertyType: 'object',
+      description: 'Object containing array of source entity names to merge from',
     },
     {
       propertyName: 'mergeStrategy',
@@ -337,8 +337,8 @@ app.mcpTool('executeBatchOperations', {
     },
     {
       propertyName: 'operations',
-      propertyType: 'string',
-      description: 'JSON array of operations to execute in batch',
+      propertyType: 'object',
+      description: 'Object containing array of operation objects to execute in batch',
     },
   ],
   handler: executeBatchOperations,

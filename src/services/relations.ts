@@ -176,8 +176,22 @@ async function executeReadOnlyGraphOperation<T>(
  */
 export async function createRelations(_toolArguments: unknown, context: InvocationContext): Promise<string> {
   return executeWithErrorHandling(async () => {
-    const args = getMcpArgs<{ relations?: string; workspaceId?: string }>(context);
-    const relations = parseJsonArg(args.relations, 'relations');
+    const args = getMcpArgs<{ relations?: any; workspaceId?: string }>(context);
+    
+    // DEBUG LOGGING
+    context.log('DEBUG - createRelations raw args:', JSON.stringify(args, null, 2));
+    context.log('DEBUG - createRelations relations param:', args.relations);
+    context.log('DEBUG - createRelations relations type:', typeof args.relations);
+    
+    // Handle both string (JSON) and object inputs
+    let relationsData: any;
+    if (typeof args.relations === 'string') {
+      relationsData = JSON.parse(args.relations);
+    } else {
+      relationsData = args.relations;
+    }
+    
+    const relations = Array.isArray(relationsData) ? relationsData : [relationsData];
     validateArrayArg(relations, 'relations');
     
     const workspaceId = getWorkspaceId(context);

@@ -406,16 +406,30 @@ export async function mergeEntities(_toolArguments: unknown, context: Invocation
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ 
       targetEntityName?: string; 
-      sourceEntityNames?: string; 
+      sourceEntityNames?: any; 
       mergeStrategy?: string; 
       workspaceId?: string; 
     }>(context);
+
+    // DEBUG LOGGING
+    context.log('DEBUG - mergeEntities raw args:', JSON.stringify(args, null, 2));
+    context.log('DEBUG - mergeEntities sourceEntityNames param:', args.sourceEntityNames);
+    context.log('DEBUG - mergeEntities sourceEntityNames type:', typeof args.sourceEntityNames);
 
     if (!args.targetEntityName) {
       throw new Error('targetEntityName is required');
     }
 
-    const sourceEntityNames = args.sourceEntityNames ? parseJsonArg(args.sourceEntityNames, 'sourceEntityNames') : [];
+    // Handle both string (JSON) and object inputs
+    let sourceEntityNames: string[] = [];
+    if (args.sourceEntityNames) {
+      if (typeof args.sourceEntityNames === 'string') {
+        const parsed = JSON.parse(args.sourceEntityNames);
+        sourceEntityNames = Array.isArray(parsed) ? parsed : [parsed];
+      } else {
+        sourceEntityNames = Array.isArray(args.sourceEntityNames) ? args.sourceEntityNames : [args.sourceEntityNames];
+      }
+    }
     validateArrayArg(sourceEntityNames, 'sourceEntityNames');
 
     const mergeStrategy = (args.mergeStrategy as 'combine' | 'replace') || 'combine';
@@ -439,8 +453,18 @@ export async function mergeEntities(_toolArguments: unknown, context: Invocation
  */
 export async function executeBatchOperations(_toolArguments: unknown, context: InvocationContext): Promise<string> {
   return executeWithErrorHandling(async () => {
-    const args = getMcpArgs<{ operations?: string; workspaceId?: string }>(context);
-    const operations = parseJsonArg(args.operations, 'operations');
+    const args = getMcpArgs<{ operations?: any; workspaceId?: string }>(context);
+    
+    // Handle both string (JSON) and object inputs
+    let operations: any[] = [];
+    if (args.operations) {
+      if (typeof args.operations === 'string') {
+        const parsed = JSON.parse(args.operations);
+        operations = Array.isArray(parsed) ? parsed : [parsed];
+      } else {
+        operations = Array.isArray(args.operations) ? args.operations : [args.operations];
+      }
+    }
     validateArrayArg(operations, 'operations');
     
     const workspaceId = getWorkspaceId(context);

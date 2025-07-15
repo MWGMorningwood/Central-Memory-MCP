@@ -186,8 +186,26 @@ export function mergeEntitiesInGraph(
  */
 export async function createEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
   return executeWithErrorHandling(async () => {
-    const args = getMcpArgs<{ entities?: string; workspaceId?: string }>(context);
-    const entities = parseJsonArg(args.entities, 'entities');
+    const args = getMcpArgs<{ entities?: any; workspaceId?: string }>(context);
+    
+    // Debug logging
+    context.log('DEBUG - createEntities raw args:', JSON.stringify(args, null, 2));
+    context.log('DEBUG - createEntities entities param:', args.entities);
+    context.log('DEBUG - createEntities entities type:', typeof args.entities);
+    
+    if (!args.entities) {
+      throw new Error('entities parameter is required');
+    }
+    
+    // Handle both string (JSON) and object inputs
+    let entitiesData: any;
+    if (typeof args.entities === 'string') {
+      entitiesData = JSON.parse(args.entities);
+    } else {
+      entitiesData = args.entities;
+    }
+    
+    const entities = Array.isArray(entitiesData) ? entitiesData : [entitiesData];
     validateArrayArg(entities, 'entities');
     
     const workspaceId = getWorkspaceId(context);
@@ -358,14 +376,32 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
  */
 export async function updateEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
   return executeWithErrorHandling(async () => {
-    const args = getMcpArgs<{ entityName?: string; newObservations?: string; metadata?: string; workspaceId?: string }>(context);
+    const args = getMcpArgs<{ entityName?: string; newObservations?: any; metadata?: any; workspaceId?: string }>(context);
     
     if (!args.entityName) {
       throw new Error('entityName is required');
     }
     
-    const newObservations = args.newObservations ? parseJsonArg(args.newObservations, 'newObservations') : [];
-    const metadata = args.metadata ? parseJsonArg(args.metadata, 'metadata') : undefined;
+    // Handle both string (JSON) and object inputs for newObservations
+    let newObservations: any[] = [];
+    if (args.newObservations) {
+      if (typeof args.newObservations === 'string') {
+        const parsed = JSON.parse(args.newObservations);
+        newObservations = Array.isArray(parsed) ? parsed : [parsed];
+      } else {
+        newObservations = Array.isArray(args.newObservations) ? args.newObservations : [args.newObservations];
+      }
+    }
+    
+    // Handle both string (JSON) and object inputs for metadata
+    let metadata: any = undefined;
+    if (args.metadata) {
+      if (typeof args.metadata === 'string') {
+        metadata = JSON.parse(args.metadata);
+      } else {
+        metadata = args.metadata;
+      }
+    }
     
     const workspaceId = getWorkspaceId(context);
     

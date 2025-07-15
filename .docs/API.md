@@ -8,12 +8,12 @@ The Central Memory MCP Server provides 16 MCP tools for knowledge graph operatio
 
 ### create_entities
 
-Creates one or more entities in the knowledge graph.
+Creates a single entity in the knowledge graph.
 
 **Parameters:**
 
 - `workspaceId` (string): Workspace identifier
-- `entities` (string): JSON array of entities to create
+- `entities` (object): Single entity object to create
 
 **Entity Structure:**
 
@@ -30,9 +30,14 @@ Creates one or more entities in the knowledge graph.
 
 ```json
 {
-  "entities": "[{\"name\":\"Alice\",\"entityType\":\"Person\",\"observations\":[\"Software engineer\",\"Loves React\"]}]",
-  "workspaceId": "my-project"
+  "workspaceId": "my-project",
+  "entities": {
+    "name": "Alice",
+    "entityType": "Person",
+    "observations": ["Software engineer", "Loves React"]
+  }
 }
+```
 ```
 
 ### add_observation
@@ -53,8 +58,24 @@ Updates entity metadata and observations.
 
 - `workspaceId` (string): Workspace identifier
 - `entityName` (string): Name of entity to update
-- `newObservations` (string): JSON array of new observations to add
-- `metadata` (string): JSON object of metadata to update
+- `newObservations` (object): Single observation object to add
+- `metadata` (object): Metadata object to update
+
+**Example:**
+
+```json
+{
+  "workspaceId": "my-project",
+  "entityName": "Alice",
+  "newObservations": {
+    "content": "Promoted to senior engineer",
+    "timestamp": "2024-01-15T10:00:00Z"
+  },
+  "metadata": {
+    "department": "Engineering"
+  }
+}
+```
 
 ### delete_entity
 
@@ -79,12 +100,12 @@ Searches entities by name or type.
 
 ### create_relations
 
-Creates relationships between entities.
+Creates a single relationship between entities.
 
 **Parameters:**
 
 - `workspaceId` (string): Workspace identifier
-- `relations` (string): JSON array of relations to create
+- `relations` (object): Single relation object to create
 
 **Relation Structure:**
 
@@ -95,6 +116,20 @@ Creates relationships between entities.
   "relationType": "worksOn|collaboratesWith|manages",
   "strength": 0.8, // optional, default 0.8
   "metadata": {} // optional
+}
+```
+
+**Example:**
+
+```json
+{
+  "workspaceId": "my-project",
+  "relations": {
+    "from": "Alice",
+    "to": "React Project",
+    "relationType": "worksOn",
+    "strength": 0.9
+  }
 }
 ```
 
@@ -224,8 +259,19 @@ Merges duplicate entities into a single target entity.
 
 - `workspaceId` (string): Workspace identifier
 - `targetEntityName` (string): Target entity to merge into
-- `sourceEntityNames` (string): JSON array of source entities to merge
+- `sourceEntityNames` (object): Object containing array of source entities to merge
 - `mergeStrategy` (string): "combine" or "replace" (default "combine")
+
+**Example:**
+
+```json
+{
+  "workspaceId": "my-project",
+  "targetEntityName": "Alice",
+  "sourceEntityNames": ["Alice Smith", "A. Smith"],
+  "mergeStrategy": "combine"
+}
+```
 
 ### execute_batch_operations
 
@@ -234,7 +280,7 @@ Executes multiple operations in a single request.
 **Parameters:**
 
 - `workspaceId` (string): Workspace identifier
-- `operations` (string): JSON array of operations to execute
+- `operations` (object): Object containing array of operations to execute
 
 **Operation Structure:**
 
@@ -242,6 +288,32 @@ Executes multiple operations in a single request.
 {
   "type": "create_entity|create_relation|delete_entity",
   "data": {/* operation-specific data */}
+}
+```
+
+**Example:**
+
+```json
+{
+  "workspaceId": "my-project",
+  "operations": [
+    {
+      "type": "create_entity",
+      "data": {
+        "name": "New Entity",
+        "entityType": "Concept",
+        "observations": ["Initial observation"]
+      }
+    },
+    {
+      "type": "create_relation",
+      "data": {
+        "from": "Alice",
+        "to": "New Entity",
+        "relationType": "created"
+      }
+    }
+  ]
 }
 ```
 
