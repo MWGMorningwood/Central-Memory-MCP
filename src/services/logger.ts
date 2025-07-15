@@ -7,41 +7,51 @@ export class Logger {
     this.context = context;
   }
 
-  info(message: string, meta?: any): void {
-    const logMessage = `[INFO] ${new Date().toISOString()} - ${message}`;
+  /**
+   * DRY: Centralized logging method to eliminate repetitive patterns
+   */
+  private logInternal(level: 'INFO' | 'ERROR' | 'WARN' | 'DEBUG', message: string, meta?: any): void {
+    const logMessage = `[${level}] ${new Date().toISOString()} - ${message}`;
+    const metaData = meta || '';
+    
     if (this.context) {
-      this.context.log(logMessage, meta || '');
+      switch (level) {
+        case 'INFO':
+          this.context.log(logMessage, metaData);
+          break;
+        case 'ERROR':
+          this.context.error(logMessage, metaData);
+          break;
+        case 'WARN':
+          this.context.warn(logMessage, metaData);
+          break;
+        case 'DEBUG':
+          this.context.debug(logMessage, metaData);
+          break;
+      }
     } else {
-      console.log(logMessage, meta || '');
+      const consoleMethod = level === 'INFO' ? console.log : 
+                          level === 'ERROR' ? console.error :
+                          level === 'WARN' ? console.warn : console.debug;
+      consoleMethod(logMessage, metaData);
     }
+  }
+
+  info(message: string, meta?: any): void {
+    this.logInternal('INFO', message, meta);
   }
 
   error(message: string, error?: any): void {
-    const logMessage = `[ERROR] ${new Date().toISOString()} - ${message}`;
-    if (this.context) {
-      this.context.error(logMessage, error || '');
-    } else {
-      console.error(logMessage, error || '');
-    }
+    this.logInternal('ERROR', message, error);
   }
 
   warn(message: string, meta?: any): void {
-    const logMessage = `[WARN] ${new Date().toISOString()} - ${message}`;
-    if (this.context) {
-      this.context.warn(logMessage, meta || '');
-    } else {
-      console.warn(logMessage, meta || '');
-    }
+    this.logInternal('WARN', message, meta);
   }
 
   debug(message: string, meta?: any): void {
     if (process.env.NODE_ENV === 'development') {
-      const logMessage = `[DEBUG] ${new Date().toISOString()} - ${message}`;
-      if (this.context) {
-        this.context.debug(logMessage, meta || '');
-      } else {
-        console.debug(logMessage, meta || '');
-      }
+      this.logInternal('DEBUG', message, meta);
     }
   }
 }

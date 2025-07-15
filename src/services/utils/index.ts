@@ -3,3 +3,7 @@ export * from './statsUtils.js';
 export * from './batchUtils.js';
 export * from './relationUtils.js';
 export * from './mcpUtils.js';
+export * from './transformationUtils.js';
+export * from './graphOperationUtils.js';
+export * from './mcpToolProperties.js';
+export * from './userContextUtils.js';

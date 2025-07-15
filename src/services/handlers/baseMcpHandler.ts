@@ -1,5 +1,5 @@
 import { InvocationContext } from '@azure/functions';
-import { KnowledgeGraphManager } from '../knowledgeGraphManager.js';
+import { PersistenceService } from '../persistenceService.js';
 import { Logger } from '../logger.js';
 import { getWorkspaceId, getUserId } from '../utils/mcpUtils.js';
 
@@ -11,7 +11,7 @@ export abstract class BaseMcpHandler {
   protected workspaceId: string;
   protected userId: string;
   protected logger: Logger;
-  protected knowledgeGraphManager!: KnowledgeGraphManager; // Initialized in initialize()
+  protected persistenceService!: PersistenceService; // Initialized in initialize()
   protected context: InvocationContext;
 
   constructor(context: InvocationContext) {
@@ -22,10 +22,10 @@ export abstract class BaseMcpHandler {
   }
 
   /**
-   * Initialize the knowledge graph manager
+   * Initialize the persistence service
    */
   protected async initialize(): Promise<void> {
-    this.knowledgeGraphManager = await KnowledgeGraphManager.createForWorkspace(this.workspaceId, this.logger);
+    this.persistenceService = await PersistenceService.createForWorkspace(this.workspaceId, this.logger);
   }
 
   /**

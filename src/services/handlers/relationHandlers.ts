@@ -1,5 +1,6 @@
 import { InvocationContext } from '@azure/functions';
 import { BaseMcpHandler, executeMcpHandler } from './baseMcpHandler.js';
+import { RelationUtils, GraphOperationUtils, UserContextUtils } from '../utils/index.js';
 
 // Create Relations Handler
 class CreateRelationsHandler extends BaseMcpHandler {
@@ -9,14 +10,17 @@ class CreateRelationsHandler extends BaseMcpHandler {
       const relations = this.parseJsonArg(args.relations, 'relations');
       this.validateArrayArg(relations, 'relations');
 
-      // Add user context to relations
-      const enhancedRelations = relations.map((rel: any) => ({
-        ...rel,
-        createdBy: rel.createdBy || this.userId,
-        strength: rel.strength !== undefined ? rel.strength : (rel.strength === 0 ? 0 : 0.8),
-      }));
+      // DRY: Use utility for user context enhancement
+      const enhancedRelations = UserContextUtils.enhanceRelationsWithUser(relations, this.userId);
 
-      return await this.knowledgeGraphManager.createRelations(enhancedRelations);
+      // DRY: Use utility for common graph operations
+      const result = await GraphOperationUtils.executeGraphOperation(
+        this.persistenceService,
+        (graph) => RelationUtils.createRelations(graph, enhancedRelations),
+        (result) => result.newRelations.length > 0
+      );
+      
+      return result.newRelations;
     }, 'Failed to create relations');
   }
 }
@@ -31,11 +35,17 @@ class SearchRelationsHandler extends BaseMcpHandler {
         relationType?: string; 
       }>();
 
-      return await this.knowledgeGraphManager.searchRelations({
-        from: args.from,
-        to: args.to,
-        relationType: args.relationType
-      });
+      // DRY: Use utility for read-only graph operations
+      const results = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => RelationUtils.searchRelations(graph.relations, {
+          from: args.from,
+          to: args.to,
+          relationType: args.relationType
+        })
+      );
+      
+      return results;
     }, 'Failed to search relations');
   }
 }
@@ -49,10 +59,16 @@ class SearchRelationsByUserHandler extends BaseMcpHandler {
         relationType?: string; 
       }>();
 
-      return await this.knowledgeGraphManager.searchRelationsByUser({
-        userId: args.userId || this.userId,
-        relationType: args.relationType
-      });
+      // DRY: Use utility for read-only graph operations
+      const results = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => RelationUtils.searchRelationsByUser(graph.relations, {
+          userId: args.userId || this.userId,
+          relationType: args.relationType
+        })
+      );
+      
+      return results;
     }, 'Failed to search relations by user');
   }
 }

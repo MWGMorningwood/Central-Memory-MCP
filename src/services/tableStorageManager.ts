@@ -2,6 +2,7 @@ import { TableClient, TableEntity, odata } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
 import { Entity, Relation } from '../types/index.js';
 import { Logger } from './logger.js';
+import { TransformationUtils } from './utils/transformationUtils.js';
 
 /**
  * Azure Table Storage manager for knowledge graph data
@@ -80,17 +81,9 @@ export class TableStorageManager {
    */
   async upsertEntities(workspaceId: string, entities: Entity[]): Promise<void> {
     try {
-      const tableEntities: TableEntity[] = entities.map(entity => ({
-        partitionKey: workspaceId,
-        rowKey: entity.name,
-        name: entity.name,
-        entityType: entity.entityType,
-        observations: JSON.stringify(entity.observations || []),
-        createdAt: entity.createdAt,
-        updatedAt: entity.updatedAt,
-        createdBy: entity.createdBy || '',
-        metadata: entity.metadata ? JSON.stringify(entity.metadata) : ''
-      }));
+      const tableEntities: TableEntity[] = entities.map(entity => 
+        TransformationUtils.entityToTableEntity(entity, workspaceId)
+      );
 
       // Batch operations for better performance
       const batchSize = 100; // Azure Table Storage limit
@@ -121,18 +114,9 @@ export class TableStorageManager {
    */
   async upsertRelations(workspaceId: string, relations: Relation[]): Promise<void> {
     try {
-      const tableRelations: TableEntity[] = relations.map(relation => ({
-        partitionKey: workspaceId,
-        rowKey: `${relation.from}|${relation.to}|${relation.relationType}`,
-        from: relation.from,
-        to: relation.to,
-        relationType: relation.relationType,
-        createdAt: relation.createdAt,
-        updatedAt: relation.updatedAt || relation.createdAt,
-        createdBy: relation.createdBy || '',
-        strength: relation.strength || 0.8,
-        metadata: relation.metadata ? JSON.stringify(relation.metadata) : ''
-      }));
+      const tableRelations: TableEntity[] = relations.map(relation => 
+        TransformationUtils.relationToTableEntity(relation, workspaceId)
+      );
 
       // Batch operations for better performance
       const batchSize = 100;
@@ -168,15 +152,7 @@ export class TableStorageManager {
       });
 
       for await (const entity of entitiesIter) {
-        entities.push({
-          name: entity.name as string,
-          entityType: entity.entityType as string,
-          observations: entity.observations ? JSON.parse(entity.observations as string) : [],
-          createdAt: entity.createdAt as string,
-          updatedAt: entity.updatedAt as string,
-          createdBy: entity.createdBy as string || undefined,
-          metadata: entity.metadata ? JSON.parse(entity.metadata as string) : undefined
-        });
+        entities.push(TransformationUtils.tableEntityToEntity(entity));
       }
 
       this.logger.debug('Retrieved entities', { 
@@ -202,16 +178,7 @@ export class TableStorageManager {
       });
 
       for await (const relation of relationsIter) {
-        relations.push({
-          from: relation.from as string,
-          to: relation.to as string,
-          relationType: relation.relationType as string,
-          createdAt: relation.createdAt as string,
-          updatedAt: relation.updatedAt as string,
-          createdBy: relation.createdBy as string || undefined,
-          strength: relation.strength as number || 0.8,
-          metadata: relation.metadata ? JSON.parse(relation.metadata as string) : undefined
-        });
+        relations.push(TransformationUtils.tableEntityToRelation(relation));
       }
 
       this.logger.debug('Retrieved relations', { 
@@ -250,15 +217,7 @@ export class TableStorageManager {
       });
 
       for await (const entity of entitiesIter) {
-        entities.push({
-          name: entity.name as string,
-          entityType: entity.entityType as string,
-          observations: entity.observations ? JSON.parse(entity.observations as string) : [],
-          createdAt: entity.createdAt as string,
-          updatedAt: entity.updatedAt as string,
-          createdBy: entity.createdBy as string || undefined,
-          metadata: entity.metadata ? JSON.parse(entity.metadata as string) : undefined
-        });
+        entities.push(TransformationUtils.tableEntityToEntity(entity));
       }
 
       this.logger.debug('Searched entities', { 
@@ -302,16 +261,7 @@ export class TableStorageManager {
       });
 
       for await (const relation of relationsIter) {
-        relations.push({
-          from: relation.from as string,
-          to: relation.to as string,
-          relationType: relation.relationType as string,
-          createdAt: relation.createdAt as string,
-          updatedAt: relation.updatedAt as string,
-          createdBy: relation.createdBy as string || undefined,
-          strength: relation.strength as number || 0.8,
-          metadata: relation.metadata ? JSON.parse(relation.metadata as string) : undefined
-        });
+        relations.push(TransformationUtils.tableEntityToRelation(relation));
       }
 
       this.logger.debug('Searched relations', { 
@@ -333,16 +283,7 @@ export class TableStorageManager {
   async getEntity(workspaceId: string, entityName: string): Promise<Entity | null> {
     try {
       const entity = await this.entityTableClient.getEntity(workspaceId, entityName);
-      
-      return {
-        name: entity.name as string,
-        entityType: entity.entityType as string,
-        observations: entity.observations ? JSON.parse(entity.observations as string) : [],
-        createdAt: entity.createdAt as string,
-        updatedAt: entity.updatedAt as string,
-        createdBy: entity.createdBy as string || undefined,
-        metadata: entity.metadata ? JSON.parse(entity.metadata as string) : undefined
-      };
+      return TransformationUtils.tableEntityToEntity(entity);
     } catch (error: any) {
       if (error.statusCode === 404) {
         return null;
@@ -433,17 +374,8 @@ export class TableStorageManager {
       });
 
       for await (const entity of entitiesIter) {
-        const entityData = {
-          name: entity.name as string,
-          entityType: entity.entityType as string,
-          observations: entity.observations ? JSON.parse(entity.observations as string) : [],
-          createdAt: entity.createdAt as string,
-          updatedAt: entity.updatedAt as string,
-          createdBy: entity.createdBy as string || undefined,
-          metadata: entity.metadata ? JSON.parse(entity.metadata as string) : undefined
-        };
-
-        const actionType = entityData.updatedAt !== entityData.createdAt ? 'updated' : 'created';
+        const entityData = TransformationUtils.tableEntityToEntity(entity);
+        const actionType = TransformationUtils.determineActionType(entityData.createdAt, entityData.updatedAt);
         entities.push({ ...entityData, actionType });
       }
 
@@ -454,18 +386,8 @@ export class TableStorageManager {
       });
 
       for await (const relation of relationsIter) {
-        const relationData = {
-          from: relation.from as string,
-          to: relation.to as string,
-          relationType: relation.relationType as string,
-          createdAt: relation.createdAt as string,
-          updatedAt: relation.updatedAt as string,
-          createdBy: relation.createdBy as string || undefined,
-          strength: relation.strength as number || 0.8,
-          metadata: relation.metadata ? JSON.parse(relation.metadata as string) : undefined
-        };
-
-        const actionType = relationData.updatedAt !== relationData.createdAt ? 'updated' : 'created';
+        const relationData = TransformationUtils.tableEntityToRelation(relation);
+        const actionType = TransformationUtils.determineActionType(relationData.createdAt, relationData.updatedAt);
         relations.push({ ...relationData, actionType });
       }
 

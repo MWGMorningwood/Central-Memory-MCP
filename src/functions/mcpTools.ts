@@ -6,6 +6,9 @@ import { createRelations, searchRelations, searchRelationsByUser } from '../serv
 import { getTemporalEvents, detectDuplicateEntities, mergeEntities, executeBatchOperations, getUserStats } from '../services/handlers/advancedHandlers.js';
 import { readGraph, getStats, clearMemory } from '../services/handlers/utilityHandlers.js';
 
+// DRY: Import standardized property definitions
+import { McpToolProperties } from '../services/utils/mcpToolProperties.js';
+
 // =============================================================================
 // MCP TOOL REGISTRATIONS
 // =============================================================================
@@ -13,16 +16,8 @@ app.mcpTool('createEntities', {
   toolName: 'create_entities',
   description: 'Create multiple new entities in the centralized knowledge graph for a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'entities',
-      propertyType: 'string',
-      description: 'JSON string array of entities to create, each with name, entityType, and observations',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.ENTITIES_JSON,
   ],
   handler: createEntities,
 });
@@ -31,16 +26,8 @@ app.mcpTool('createRelations', {
   toolName: 'create_relations',
   description: 'Create multiple new relations between entities in the knowledge graph for a specific workspace. Supports enhanced features like strength scoring and user attribution.',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'relations',
-      propertyType: 'string',
-      description: 'JSON string array of relations to create, each with from, to, relationType, and optional strength/createdBy',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.RELATIONS_JSON,
   ],
   handler: createRelations,
 });
@@ -49,11 +36,7 @@ app.mcpTool('readGraph', {
   toolName: 'read_graph',
   description: 'Read the entire centralized knowledge graph for a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
+    McpToolProperties.WORKSPACE_ID,
   ],
   handler: readGraph,
 });
@@ -62,21 +45,9 @@ app.mcpTool('searchEntities', {
   toolName: 'search_entities',
   description: 'Search for entities by name or type in a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'name',
-      propertyType: 'string',
-      description: 'Search by entity name (partial match, optional)',
-    },
-    {
-      propertyName: 'entityType',
-      propertyType: 'string',
-      description: 'Search by entity type (partial match, optional)',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.NAME,
+    McpToolProperties.ENTITY_TYPE,
   ],
   handler: searchEntities,
 });
@@ -85,26 +56,10 @@ app.mcpTool('searchRelations', {
   toolName: 'search_relations',
   description: 'Search for relations by entity names or type in a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'from',
-      propertyType: 'string',
-      description: 'Source entity name (optional)',
-    },
-    {
-      propertyName: 'to',
-      propertyType: 'string',
-      description: 'Target entity name (optional)',
-    },
-    {
-      propertyName: 'relationType',
-      propertyType: 'string',
-      description: 'Relation type (partial match, optional)',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.FROM,
+    McpToolProperties.TO,
+    McpToolProperties.RELATION_TYPE,
   ],
   handler: searchRelations,
 });
@@ -113,21 +68,9 @@ app.mcpTool('addObservation', {
   toolName: 'add_observation',
   description: 'Add a new observation to an existing entity in a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'entityName',
-      propertyType: 'string',
-      description: 'Name of the entity to add observation to',
-    },
-    {
-      propertyName: 'observation',
-      propertyType: 'string',
-      description: 'Observation content to add',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.ENTITY_NAME,
+    McpToolProperties.OBSERVATION,
   ],
   handler: addObservation,
 });
@@ -136,16 +79,8 @@ app.mcpTool('deleteEntity', {
   toolName: 'delete_entity',
   description: 'Delete an entity and all its relations from a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'entityName',
-      propertyType: 'string',
-      description: 'Name of the entity to delete',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.ENTITY_NAME,
   ],
   handler: deleteEntity,
 });
@@ -154,11 +89,7 @@ app.mcpTool('getStats', {
   toolName: 'get_stats',
   description: 'Get statistics about the centralized knowledge graph for a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
+    McpToolProperties.WORKSPACE_ID,
   ],
   handler: getStats,
 });
@@ -167,11 +98,7 @@ app.mcpTool('clearMemory', {
   toolName: 'clear_memory',
   description: 'Clear all memory data for a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
+    McpToolProperties.WORKSPACE_ID,
   ],
   handler: clearMemory,
 });
@@ -180,26 +107,10 @@ app.mcpTool('updateEntity', {
   toolName: 'update_entity',
   description: 'Update an existing entity with new observations or metadata',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'entityName',
-      propertyType: 'string',
-      description: 'Name of the entity to update',
-    },
-    {
-      propertyName: 'newObservations',
-      propertyType: 'string',
-      description: 'JSON string array of new observations to add to the entity',
-    },
-    {
-      propertyName: 'metadata',
-      propertyType: 'string',
-      description: 'JSON string object of metadata fields to update',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.ENTITY_NAME,
+    McpToolProperties.NEW_OBSERVATIONS,
+    McpToolProperties.METADATA,
   ],
   handler: updateEntity,
 });
@@ -208,21 +119,9 @@ app.mcpTool('searchRelationsByUser', {
   toolName: 'search_relations_by_user',
   description: 'Search for relations created by a specific user in a specific workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'userId',
-      propertyType: 'string',
-      description: 'ID of the user who created the relations (optional)',
-    },
-    {
-      propertyName: 'relationType',
-      propertyType: 'string',
-      description: 'Relation type (partial match, optional)',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.USER_ID,
+    McpToolProperties.RELATION_TYPE,
   ],
   handler: searchRelationsByUser,
 });
@@ -231,16 +130,8 @@ app.mcpTool('getUserStats', {
   toolName: 'get_user_stats',
   description: 'Get statistics about the memory usage and entity/relationship counts for a specific user in a workspace',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'userId',
-      propertyType: 'string',
-      description: 'ID of the user to get statistics for (optional, defaults to current user)',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.USER_ID,
   ],
   handler: getUserStats,
 });
@@ -250,31 +141,11 @@ app.mcpTool('getTemporalEvents', {
   toolName: 'get_temporal_events',
   description: 'Get temporal events - find what happened when in the memory system',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'startTime',
-      propertyType: 'string',
-      description: 'Start time for temporal query (ISO 8601 format, optional)',
-    },
-    {
-      propertyName: 'endTime',
-      propertyType: 'string',
-      description: 'End time for temporal query (ISO 8601 format, optional)',
-    },
-    {
-      propertyName: 'entityName',
-      propertyType: 'string',
-      description: 'Filter by entity name (optional)',
-    },
-    {
-      propertyName: 'relationType',
-      propertyType: 'string',
-      description: 'Filter by relation type (optional)',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.START_TIME,
+    McpToolProperties.END_TIME,
+    McpToolProperties.ENTITY_NAME,
+    McpToolProperties.RELATION_TYPE,
   ],
   handler: getTemporalEvents,
 });
@@ -283,16 +154,8 @@ app.mcpTool('detectDuplicateEntities', {
   toolName: 'detect_duplicate_entities',
   description: 'Detect and identify potential duplicate entities in the knowledge graph',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'threshold',
-      propertyType: 'string',
-      description: 'Similarity threshold for duplicate detection (0.0 to 1.0, defaults to 0.8)',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.THRESHOLD,
   ],
   handler: detectDuplicateEntities,
 });
@@ -301,26 +164,10 @@ app.mcpTool('mergeEntities', {
   toolName: 'merge_entities',
   description: 'Merge duplicate entities into a single target entity',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'targetEntityName',
-      propertyType: 'string',
-      description: 'Name of the target entity to merge into',
-    },
-    {
-      propertyName: 'sourceEntityNames',
-      propertyType: 'string',
-      description: 'JSON array of source entity names to merge from',
-    },
-    {
-      propertyName: 'mergeStrategy',
-      propertyType: 'string',
-      description: 'Merge strategy: "combine" or "replace" (defaults to "combine")',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.TARGET_ENTITY_NAME,
+    McpToolProperties.SOURCE_ENTITY_NAMES,
+    McpToolProperties.MERGE_STRATEGY,
   ],
   handler: mergeEntities,
 });
@@ -329,16 +176,8 @@ app.mcpTool('executeBatchOperations', {
   toolName: 'execute_batch_operations',
   description: 'Execute multiple operations in a single batch for performance',
   toolProperties: [
-    {
-      propertyName: 'workspaceId',
-      propertyType: 'string',
-      description: 'Unique identifier for the workspace/project (defaults to "default")',
-    },
-    {
-      propertyName: 'operations',
-      propertyType: 'string',
-      description: 'JSON array of operations to execute in batch',
-    },
+    McpToolProperties.WORKSPACE_ID,
+    McpToolProperties.OPERATIONS,
   ],
   handler: executeBatchOperations,
 });

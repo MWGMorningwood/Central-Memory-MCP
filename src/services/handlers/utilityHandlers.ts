@@ -1,11 +1,18 @@
 import { InvocationContext } from '@azure/functions';
-import { BaseMcpHandler, executeMcpHandler } from './baseMcpHandler.js';
+import { BaseMcpHandler } from './baseMcpHandler.js';
+import { StatsUtils, GraphOperationUtils } from '../utils/index.js';
+import { createHandlerExports } from './handlerFactory.js';
 
 // Read Graph Handler
 class ReadGraphHandler extends BaseMcpHandler {
   async execute(): Promise<string> {
     return this.executeWithErrorHandling(async () => {
-      return await this.knowledgeGraphManager.readGraph();
+      // DRY: Use utility for read-only graph operations
+      const graph = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => graph
+      );
+      return graph;
     }, 'Failed to read graph');
   }
 }
@@ -14,7 +21,12 @@ class ReadGraphHandler extends BaseMcpHandler {
 class GetStatsHandler extends BaseMcpHandler {
   async execute(): Promise<string> {
     return this.executeWithErrorHandling(async () => {
-      return await this.knowledgeGraphManager.getStats();
+      // DRY: Use utility for read-only graph operations
+      const stats = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => StatsUtils.generateStats(graph, this.persistenceService.getWorkspaceId())
+      );
+      return stats;
     }, 'Failed to get stats');
   }
 }
@@ -23,21 +35,17 @@ class GetStatsHandler extends BaseMcpHandler {
 class ClearMemoryHandler extends BaseMcpHandler {
   async execute(): Promise<string> {
     return this.executeWithErrorHandling(async () => {
-      await this.knowledgeGraphManager.clearMemory();
+      await this.persistenceService.clearMemory();
       return { success: true, message: "Memory cleared successfully" };
     }, 'Failed to clear memory');
   }
 }
 
-// Export the handler functions using the factory
-export async function readGraph(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  return await executeMcpHandler(ReadGraphHandler, context);
-}
+// DRY: Use factory function to create all exports at once
+const { readGraph, getStats, clearMemory } = createHandlerExports({
+  readGraph: ReadGraphHandler,
+  getStats: GetStatsHandler,
+  clearMemory: ClearMemoryHandler
+});
 
-export async function getStats(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  return await executeMcpHandler(GetStatsHandler, context);
-}
-
-export async function clearMemory(_toolArguments: unknown, context: InvocationContext): Promise<string> {
-  return await executeMcpHandler(ClearMemoryHandler, context);
-}
+export { readGraph, getStats, clearMemory };

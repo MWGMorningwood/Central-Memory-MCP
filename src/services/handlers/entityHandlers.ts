@@ -1,5 +1,6 @@
 import { InvocationContext } from '@azure/functions';
 import { BaseMcpHandler, executeMcpHandler } from './baseMcpHandler.js';
+import { EntityUtils, GraphOperationUtils, UserContextUtils } from '../utils/index.js';
 
 // Create Entities Handler
 class CreateEntitiesHandler extends BaseMcpHandler {
@@ -9,13 +10,17 @@ class CreateEntitiesHandler extends BaseMcpHandler {
       const entities = this.parseJsonArg(args.entities, 'entities');
       this.validateArrayArg(entities, 'entities');
 
-      // Add user context to entities
-      const enhancedEntities = entities.map((entity: any) => ({
-        ...entity,
-        createdBy: entity.createdBy || this.userId,
-      }));
+      // DRY: Use utility for user context enhancement
+      const enhancedEntities = UserContextUtils.enhanceEntitiesWithUser(entities, this.userId);
 
-      return await this.knowledgeGraphManager.createEntities(enhancedEntities, this.userId);
+      // DRY: Use utility for common graph operations
+      const result = await GraphOperationUtils.executeGraphOperation(
+        this.persistenceService,
+        (graph) => EntityUtils.createEntities(graph, enhancedEntities, this.userId),
+        (result) => result.newEntities.length > 0
+      );
+      
+      return result.newEntities;
     }, 'Failed to create entities');
   }
 }
@@ -30,10 +35,16 @@ class SearchEntitiesHandler extends BaseMcpHandler {
         fuzzyMatch?: string; 
       }>();
 
-      return await this.knowledgeGraphManager.searchEntities({
-        name: args.name,
-        entityType: args.entityType
-      });
+      // DRY: Use utility for read-only graph operations
+      const results = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => EntityUtils.searchEntities(graph.entities, {
+          name: args.name,
+          entityType: args.entityType
+        })
+      );
+      
+      return results;
     }, 'Failed to search entities');
   }
 }
@@ -51,7 +62,14 @@ class AddObservationHandler extends BaseMcpHandler {
         throw new Error('Both entityName and observation are required');
       }
 
-      return await this.knowledgeGraphManager.addObservation(args.entityName, args.observation);
+      const graph = await this.persistenceService.loadGraph();
+      const result = EntityUtils.updateEntity(graph, args.entityName, [args.observation], this.userId);
+      
+      if (result.updatedEntity) {
+        await this.persistenceService.saveGraph(result.updatedGraph);
+      }
+      
+      return result.updatedEntity;
     }, 'Failed to add observation');
   }
 }
@@ -73,12 +91,14 @@ class UpdateEntityHandler extends BaseMcpHandler {
       const newObservations = args.newObservations ? this.parseJsonArg(args.newObservations, 'newObservations') : [];
       const metadata = args.metadata ? this.parseJsonArg(args.metadata, 'metadata') : undefined;
 
-      return await this.knowledgeGraphManager.updateEntity(
-        args.entityName,
-        newObservations,
-        this.userId,
-        metadata
-      );
+      const graph = await this.persistenceService.loadGraph();
+      const result = EntityUtils.updateEntity(graph, args.entityName, newObservations, this.userId, metadata);
+      
+      if (result.updatedEntity) {
+        await this.persistenceService.saveGraph(result.updatedGraph);
+      }
+      
+      return result.updatedEntity;
     }, 'Failed to update entity');
   }
 }
@@ -93,8 +113,14 @@ class DeleteEntityHandler extends BaseMcpHandler {
         throw new Error('entityName is required');
       }
 
-      const result = await this.knowledgeGraphManager.deleteEntity(args.entityName);
-      return { success: result, entityName: args.entityName };
+      const graph = await this.persistenceService.loadGraph();
+      const result = EntityUtils.deleteEntity(graph, args.entityName);
+      
+      if (result.deleted) {
+        await this.persistenceService.saveGraph(result.updatedGraph);
+      }
+      
+      return { success: result.deleted, entityName: args.entityName };
     }, 'Failed to delete entity');
   }
 }

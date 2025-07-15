@@ -1,5 +1,6 @@
 import { InvocationContext } from '@azure/functions';
 import { BaseMcpHandler, executeMcpHandler } from './baseMcpHandler.js';
+import { StatsUtils, EntityUtils, BatchUtils, GraphOperationUtils } from '../utils/index.js';
 
 // Get Temporal Events Handler
 class GetTemporalEventsHandler extends BaseMcpHandler {
@@ -12,13 +13,17 @@ class GetTemporalEventsHandler extends BaseMcpHandler {
         relationType?: string; 
       }>();
 
-      return await this.knowledgeGraphManager.getTemporalEvents({
-        startTime: args.startTime,
-        endTime: args.endTime,
-        entityName: args.entityName,
-        relationType: args.relationType,
-        userId: this.userId
+      const start = args.startTime || '1970-01-01T00:00:00.000Z';
+      const end = args.endTime || new Date().toISOString();
+      
+      const { entities, relations } = await this.persistenceService.getTemporalEvents(start, end);
+      const filtered = StatsUtils.filterTemporalEvents(entities, relations, { 
+        entityName: args.entityName, 
+        relationType: args.relationType, 
+        userId: this.userId 
       });
+
+      return { entities: filtered.entities, relations: filtered.relations, timeRange: { start, end } };
     }, 'Failed to get temporal events');
   }
 }
@@ -30,7 +35,13 @@ class DetectDuplicateEntitiesHandler extends BaseMcpHandler {
       const args = this.getMcpArgs<{ threshold?: string }>();
       const threshold = args.threshold ? parseFloat(args.threshold) : 0.8;
 
-      return await this.knowledgeGraphManager.detectDuplicateEntities(threshold);
+      // DRY: Use utility for read-only graph operations
+      const result = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => EntityUtils.detectDuplicates(graph, threshold)
+      );
+      
+      return result;
     }, 'Failed to detect duplicate entities');
   }
 }
@@ -54,12 +65,14 @@ class MergeEntitiesHandler extends BaseMcpHandler {
 
       const mergeStrategy = (args.mergeStrategy as 'combine' | 'replace') || 'combine';
 
-      return await this.knowledgeGraphManager.mergeEntities(
-        args.targetEntityName,
-        sourceEntityNames,
-        mergeStrategy,
-        this.userId
+      // DRY: Use utility for graph operations with automatic save
+      const result = await GraphOperationUtils.executeGraphOperation(
+        this.persistenceService,
+        (graph) => EntityUtils.mergeEntities(graph, args.targetEntityName!, sourceEntityNames, mergeStrategy),
+        () => true // Always save after merge
       );
+      
+      return result.mergedEntity;
     }, 'Failed to merge entities');
   }
 }
@@ -72,7 +85,16 @@ class ExecuteBatchOperationsHandler extends BaseMcpHandler {
       const operations = this.parseJsonArg(args.operations, 'operations');
       this.validateArrayArg(operations, 'operations');
 
-      return await this.knowledgeGraphManager.executeBatchOperations(operations);
+      // Note: BatchUtils.executeBatchOperations is async, so we can't use GraphOperationUtils.executeGraphOperation
+      // which expects synchronous operations. We handle the load/save pattern manually here.
+      const graph = await this.persistenceService.loadGraph();
+      const result = await BatchUtils.executeBatchOperations(graph, operations);
+      
+      if (result.updatedGraph) {
+        await this.persistenceService.saveGraph(result.updatedGraph);
+      }
+      
+      return { successful: result.successful, failed: result.failed, errors: result.errors, results: result.results };
     }, 'Failed to execute batch operations');
   }
 }
@@ -84,7 +106,13 @@ class GetUserStatsHandler extends BaseMcpHandler {
       const args = this.getMcpArgs<{ userId?: string }>();
       const userId = args.userId || this.userId;
 
-      return await this.knowledgeGraphManager.getUserStats(userId);
+      // DRY: Use utility for read-only graph operations
+      const stats = await GraphOperationUtils.executeReadOnlyGraphOperation(
+        this.persistenceService,
+        (graph) => StatsUtils.generateUserStats(graph, userId)
+      );
+      
+      return stats;
     }, 'Failed to get user stats');
   }
 }
