@@ -15,9 +15,13 @@
                 "@modelcontextprotocol/server-sequential-thinking"
             ]
         },
-        "memory-test": {
+        "memory-debug": {
             "type": "http",
             "url": "http://localhost:7071/runtime/webhooks/mcp/sse?workspace=Central-Memory-MCP"
-        }
+        },
+        "memory-prod": {
+			"type": "http",
+			"url": "https://yourfunctionapp.azurewebsites.net/runtime/webhooks/mcp/sse?workspace=Central-Memory-MCP&code=yourMcpExtensionKey"
+		}
     }
 }

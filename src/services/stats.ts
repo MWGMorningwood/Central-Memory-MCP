@@ -425,9 +425,19 @@ export async function mergeEntities(_toolArguments: unknown, context: Invocation
     if (args.sourceEntityNames) {
       if (typeof args.sourceEntityNames === 'string') {
         const parsed = JSON.parse(args.sourceEntityNames);
-        sourceEntityNames = Array.isArray(parsed) ? parsed : [parsed];
-      } else {
-        sourceEntityNames = Array.isArray(args.sourceEntityNames) ? args.sourceEntityNames : [args.sourceEntityNames];
+        // Handle the case where it's an object with a sourceEntityNames array property
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.sourceEntityNames)) {
+          sourceEntityNames = parsed.sourceEntityNames;
+        } else {
+          sourceEntityNames = Array.isArray(parsed) ? parsed : [parsed];
+        }
+      } else if (typeof args.sourceEntityNames === 'object') {
+        // Handle the case where it's an object with a sourceEntityNames array property
+        if (Array.isArray(args.sourceEntityNames.sourceEntityNames)) {
+          sourceEntityNames = args.sourceEntityNames.sourceEntityNames;
+        } else {
+          sourceEntityNames = Array.isArray(args.sourceEntityNames) ? args.sourceEntityNames : [args.sourceEntityNames];
+        }
       }
     }
     validateArrayArg(sourceEntityNames, 'sourceEntityNames');
@@ -460,9 +470,19 @@ export async function executeBatchOperations(_toolArguments: unknown, context: I
     if (args.operations) {
       if (typeof args.operations === 'string') {
         const parsed = JSON.parse(args.operations);
-        operations = Array.isArray(parsed) ? parsed : [parsed];
-      } else {
-        operations = Array.isArray(args.operations) ? args.operations : [args.operations];
+        // Handle the case where it's an object with an operations array property
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.operations)) {
+          operations = parsed.operations;
+        } else {
+          operations = Array.isArray(parsed) ? parsed : [parsed];
+        }
+      } else if (typeof args.operations === 'object') {
+        // Handle the case where it's an object with an operations array property
+        if (Array.isArray(args.operations.operations)) {
+          operations = args.operations.operations;
+        } else {
+          operations = Array.isArray(args.operations) ? args.operations : [args.operations];
+        }
       }
     }
     validateArrayArg(operations, 'operations');

@@ -60,8 +60,24 @@ export function calculateEntitySimilarity(entity1: Entity, entity2: Entity): num
   }
   
   // Observation overlap
-  const obs1Set = new Set(entity1.observations.map(o => o.toLowerCase()));
-  const obs2Set = new Set(entity2.observations.map(o => o.toLowerCase()));
+  const obs1Set = new Set(entity1.observations.map(o => {
+    if (typeof o === 'string') {
+      return o.toLowerCase();
+    } else if (typeof o === 'object' && o !== null && 'observation' in o) {
+      return (o as any).observation.toLowerCase();
+    } else {
+      return JSON.stringify(o).toLowerCase();
+    }
+  }));
+  const obs2Set = new Set(entity2.observations.map(o => {
+    if (typeof o === 'string') {
+      return o.toLowerCase();
+    } else if (typeof o === 'object' && o !== null && 'observation' in o) {
+      return (o as any).observation.toLowerCase();
+    } else {
+      return JSON.stringify(o).toLowerCase();
+    }
+  }));
   const intersection = new Set([...obs1Set].filter(x => obs2Set.has(x)));
   const union = new Set([...obs1Set, ...obs2Set]);
   const observationScore = intersection.size / union.size;
