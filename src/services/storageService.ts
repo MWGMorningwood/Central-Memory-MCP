@@ -75,6 +75,11 @@ function tableEntityToEntity(tableEntity: any): Entity {
  * Convert table entity to domain relation
  */
 function tableEntityToRelation(tableEntity: any): Relation {
+  // Validate required fields exist
+  if (!tableEntity.from || !tableEntity.to || !tableEntity.relationType) {
+    throw new Error(`Invalid relation data: missing required fields. Got: ${JSON.stringify(tableEntity)}`);
+  }
+
   return {
     from: tableEntity.from as string,
     to: tableEntity.to as string,
@@ -355,9 +360,16 @@ export class StorageService {
       });
 
       for await (const relation of relationsIter) {
-        const relationData = tableEntityToRelation(relation);
-        const actionType = determineActionType(relationData.createdAt, relationData.updatedAt);
-        relations.push({ ...relationData, actionType });
+        try {
+          const relationData = tableEntityToRelation(relation);
+          const actionType = determineActionType(relationData.createdAt, relationData.updatedAt);
+          relations.push({ ...relationData, actionType });
+        } catch (error) {
+          this.logger.warn('Skipping corrupted relation record', { 
+            error: error instanceof Error ? error.message : String(error),
+            relationData: relation 
+          });
+        }
       }
 
       this.logger.debug('Retrieved temporal events', {
@@ -469,7 +481,14 @@ export class StorageService {
       });
 
       for await (const relation of relationsIter) {
-        relations.push(tableEntityToRelation(relation));
+        try {
+          relations.push(tableEntityToRelation(relation));
+        } catch (error) {
+          this.logger.warn('Skipping corrupted relation record', { 
+            error: error instanceof Error ? error.message : String(error),
+            relationData: relation 
+          });
+        }
       }
 
       this.logger.debug('Retrieved relations', { 
