@@ -12,7 +12,7 @@ import { getTemporalEvents, detectDuplicateEntities, mergeEntities, executeBatch
 // =============================================================================
 app.mcpTool('createEntities', {
   toolName: 'create_entities',
-  description: 'Create a new entity in the centralized knowledge graph for a specific workspace',
+  description: 'Create new entities in the knowledge graph. This is typically the first step when adding new information. Use read_graph first to check if entities already exist. Creates or updates entities with observations.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -22,7 +22,7 @@ app.mcpTool('createEntities', {
     {
       propertyName: 'entities',
       propertyType: 'object',
-      description: 'Single entity object to create with name, entityType, and observations',
+      description: 'Entity object with required fields: name (string), entityType (string), observations (array of strings). Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer", "Works on React"]}',
     },
   ],
   handler: createEntities,
@@ -30,7 +30,7 @@ app.mcpTool('createEntities', {
 
 app.mcpTool('createRelations', {
   toolName: 'create_relations',
-  description: 'Create a new relation between entities in the knowledge graph for a specific workspace. Supports enhanced features like strength scoring and user attribution.',
+  description: 'Create relationships between entities in the knowledge graph. Will automatically create any missing entities referenced in the relationship. Use read_graph first to understand existing entities.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -40,7 +40,7 @@ app.mcpTool('createRelations', {
     {
       propertyName: 'relations',
       propertyType: 'object',
-      description: 'Single relation object to create with from, to, relationType, and optional strength/createdBy',
+      description: 'Relation object with required fields: from (string), to (string), relationType (string). Optional: strength (0-1). Example: {"from": "Alice", "to": "React Project", "relationType": "worksOn", "strength": 0.9}',
     },
   ],
   handler: createRelations,
@@ -48,7 +48,7 @@ app.mcpTool('createRelations', {
 
 app.mcpTool('readGraph', {
   toolName: 'read_graph',
-  description: 'Read the entire centralized knowledge graph for a specific workspace',
+  description: 'RECOMMENDED FIRST STEP: Read the entire knowledge graph to understand existing entities and relationships before making changes. Always use this tool first to avoid duplicates and understand the current state.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -61,7 +61,7 @@ app.mcpTool('readGraph', {
 
 app.mcpTool('searchEntities', {
   toolName: 'search_entities',
-  description: 'Search for entities by name or type in a specific workspace',
+  description: 'Search for existing entities by name or type. Use this to check if entities exist before creating new ones or adding relationships.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -71,12 +71,12 @@ app.mcpTool('searchEntities', {
     {
       propertyName: 'name',
       propertyType: 'string',
-      description: 'Search by entity name (partial match, optional)',
+      description: 'Search by entity name (partial match, case-insensitive, optional)',
     },
     {
       propertyName: 'entityType',
       propertyType: 'string',
-      description: 'Search by entity type (partial match, optional)',
+      description: 'Search by entity type (partial match, case-insensitive, optional)',
     },
   ],
   handler: searchEntities,
@@ -84,7 +84,7 @@ app.mcpTool('searchEntities', {
 
 app.mcpTool('searchRelations', {
   toolName: 'search_relations',
-  description: 'Search for relations by entity names or type in a specific workspace',
+  description: 'Search for existing relationships between entities. Use this to understand how entities are connected before creating new relationships.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -94,17 +94,17 @@ app.mcpTool('searchRelations', {
     {
       propertyName: 'from',
       propertyType: 'string',
-      description: 'Source entity name (optional)',
+      description: 'Source entity name (partial match, case-insensitive, optional)',
     },
     {
       propertyName: 'to',
       propertyType: 'string',
-      description: 'Target entity name (optional)',
+      description: 'Target entity name (partial match, case-insensitive, optional)',
     },
     {
       propertyName: 'relationType',
       propertyType: 'string',
-      description: 'Relation type (partial match, optional)',
+      description: 'Relation type (partial match, case-insensitive, optional)',
     },
   ],
   handler: searchRelations,
@@ -112,7 +112,7 @@ app.mcpTool('searchRelations', {
 
 app.mcpTool('addObservation', {
   toolName: 'add_observation',
-  description: 'Add a new observation to an existing entity in a specific workspace',
+  description: 'Add a new observation to an existing entity. If entity does not exist, will automatically create it with basic information. IMPORTANT: Use read_graph or search_entities first to check if entity exists.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -122,12 +122,17 @@ app.mcpTool('addObservation', {
     {
       propertyName: 'entityName',
       propertyType: 'string',
-      description: 'Name of the entity to add observation to',
+      description: 'Name of the entity to add observation to (required)',
     },
     {
       propertyName: 'observation',
       propertyType: 'string',
-      description: 'Observation content to add',
+      description: 'Observation content to add (required)',
+    },
+    {
+      propertyName: 'entityType',
+      propertyType: 'string',
+      description: 'Entity type to use if creating new entity (optional, defaults to "Unknown")',
     },
   ],
   handler: addObservation,
@@ -135,7 +140,7 @@ app.mcpTool('addObservation', {
 
 app.mcpTool('deleteEntity', {
   toolName: 'delete_entity',
-  description: 'Delete an entity and all its relations from a specific workspace',
+  description: 'Delete an entity and all its relationships from the workspace. Use search_entities or read_graph first to confirm the entity exists.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -145,7 +150,7 @@ app.mcpTool('deleteEntity', {
     {
       propertyName: 'entityName',
       propertyType: 'string',
-      description: 'Name of the entity to delete',
+      description: 'Name of the entity to delete (required)',
     },
   ],
   handler: deleteEntity,
@@ -153,7 +158,7 @@ app.mcpTool('deleteEntity', {
 
 app.mcpTool('getStats', {
   toolName: 'get_stats',
-  description: 'Get statistics about the centralized knowledge graph for a specific workspace',
+  description: 'Get statistics about the knowledge graph including entity counts, types, and relationships. Useful for understanding the current state of your workspace.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -166,7 +171,7 @@ app.mcpTool('getStats', {
 
 app.mcpTool('clearMemory', {
   toolName: 'clear_memory',
-  description: 'Clear all memory data for a specific workspace',
+  description: 'CAUTION: Permanently delete all memory data for a workspace. Use get_stats first to understand what will be deleted.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -179,7 +184,7 @@ app.mcpTool('clearMemory', {
 
 app.mcpTool('updateEntity', {
   toolName: 'update_entity',
-  description: 'Update an existing entity with new observations or metadata',
+  description: 'Update an existing entity with new observations or metadata. Use this to modify entities found via search_entities or read_graph.',
   toolProperties: [
     {
       propertyName: 'workspaceId',
@@ -189,17 +194,17 @@ app.mcpTool('updateEntity', {
     {
       propertyName: 'entityName',
       propertyType: 'string',
-      description: 'Name of the entity to update',
+      description: 'Name of the entity to update (required)',
     },
     {
       propertyName: 'newObservations',
       propertyType: 'object',
-      description: 'Single observation object to add to the entity',
+      description: 'Single observation string or array of observation strings to add to the entity (optional)',
     },
     {
       propertyName: 'metadata',
       propertyType: 'object',
-      description: 'Object containing metadata fields to update',
+      description: 'Object containing metadata fields to update (optional)',
     },
   ],
   handler: updateEntity,
