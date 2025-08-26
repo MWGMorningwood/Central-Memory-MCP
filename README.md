@@ -51,6 +51,13 @@ curl http://localhost:7071/api/health
 #memory-test_add_observation workspaceId="my-project" entityName="Alice" observation="Leads the frontend team" entityType="Person"
 ```
 
+**Key Features for Better LLM Usability:**
+- ✅ Auto-creation of missing entities when adding observations or relations
+- ✅ Helpful error messages with examples when validation fails  
+- ✅ Workflow guidance to view graph first, then search, then create
+- ✅ Clear parameter descriptions with expected formats
+- ✅ Reduced friction - tools handle common edge cases automatically
+
 ## 🔧 MCP Tools
 
 **Core Operations:**
