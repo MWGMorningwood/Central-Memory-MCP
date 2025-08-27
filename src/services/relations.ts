@@ -173,6 +173,7 @@ async function executeReadOnlyGraphOperation<T>(
 
 /**
  * Create multiple new relations between entities in the knowledge graph
+ * Automatically creates missing entities as "Unknown" type
  */
 export async function createRelations(_toolArguments: unknown, context: InvocationContext): Promise<string> {
   return executeWithErrorHandling(async () => {
@@ -182,6 +183,10 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
     context.log('DEBUG - createRelations raw args:', JSON.stringify(args, null, 2));
     context.log('DEBUG - createRelations relations param:', args.relations);
     context.log('DEBUG - createRelations relations type:', typeof args.relations);
+    
+    if (!args.relations) {
+      throw new Error('relations parameter is required. Please provide a relation object with from, to, and relationType fields.');
+    }
     
     // Handle both string (JSON) and object inputs
     let relationsData: any;
@@ -193,6 +198,13 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
     
     const relations = Array.isArray(relationsData) ? relationsData : [relationsData];
     validateArrayArg(relations, 'relations');
+    
+    // Validate relation structure
+    for (const relation of relations) {
+      if (!relation.from || !relation.to || !relation.relationType) {
+        throw new Error('Each relation must have from, to, and relationType fields. Example: {"from": "Alice", "to": "Project", "relationType": "worksOn"}');
+      }
+    }
     
     const workspaceId = getWorkspaceId(context);
     const userId = getUserId(context);
@@ -208,6 +220,41 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
       storageService,
       (graph) => {
         const now = new Date().toISOString();
+        const entitiesCreated: string[] = [];
+        
+        // Auto-create missing entities
+        for (const relation of enhancedRelations) {
+          const fromExists = graph.entities.some(e => e.name === relation.from);
+          const toExists = graph.entities.some(e => e.name === relation.to);
+          
+          if (!fromExists) {
+            const newEntity = {
+              name: relation.from,
+              entityType: 'Unknown',
+              observations: [`Auto-created as part of relation to ${relation.to}`],
+              createdBy: userId,
+              createdAt: now,
+              updatedAt: now
+            };
+            graph.entities.push(newEntity);
+            entitiesCreated.push(relation.from);
+            context.log(`Auto-created entity '${relation.from}' as Unknown type`);
+          }
+          
+          if (!toExists) {
+            const newEntity = {
+              name: relation.to,
+              entityType: 'Unknown',
+              observations: [`Auto-created as part of relation from ${relation.from}`],
+              createdBy: userId,
+              createdAt: now,
+              updatedAt: now
+            };
+            graph.entities.push(newEntity);
+            entitiesCreated.push(relation.to);
+            context.log(`Auto-created entity '${relation.to}' as Unknown type`);
+          }
+        }
         
         const newRelations = enhancedRelations
           .filter(r => !graph.relations.some(existing => 
@@ -227,12 +274,24 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
           relations: [...graph.relations, ...newRelations]
         };
 
-        return { newRelations, updatedGraph };
+        return { 
+          newRelations, 
+          entitiesCreated, 
+          updatedGraph 
+        };
       },
       (result) => result.newRelations.length > 0
     );
     
-    return result.newRelations;
+    const response = {
+      relations: result.newRelations,
+      entitiesCreated: result.entitiesCreated,
+      message: result.entitiesCreated.length > 0 
+        ? `Created ${result.newRelations.length} relation(s) and auto-created ${result.entitiesCreated.length} missing entit(ies): ${result.entitiesCreated.join(', ')}`
+        : `Created ${result.newRelations.length} relation(s)`
+    };
+    
+    return response;
   }, 'Failed to create relations');
 }
 
