@@ -14,8 +14,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "clean": "rimraf dist",
-    "prestart": "npm run clean && npm run build",
+    "prestart": "npm run build",
     "start": "func start --verbose",
     "test": "echo \"No tests yet...\""
   },
