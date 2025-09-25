@@ -241,6 +241,8 @@ export async function createEntities(
         context.log(`Auto-created empty observations array for entity '${entity.name}'`);
       } else if (!Array.isArray(entity.observations)) {
         throw new Error(`Entity ${i + 1} 'observations' must be an array of strings. Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer", "Works on React"]}`);
+      } else if (!entity.observations.every(obs => typeof obs === 'string')) {
+        throw new Error(`Entity ${i + 1} 'observations' must only contain strings. Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer", "Works on React"]}`);
       }
     }
     
