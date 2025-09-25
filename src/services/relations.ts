@@ -287,7 +287,7 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
       relations: result.newRelations,
       entitiesCreated: result.entitiesCreated,
       message: result.entitiesCreated.length > 0 
-        ? `Created ${result.newRelations.length} relation(s) and auto-created ${result.entitiesCreated.length} missing entit(ies): ${result.entitiesCreated.join(', ')}`
+        ? `Created ${result.newRelations.length} relation(s) and auto-created ${result.entitiesCreated.length} missing entities: ${result.entitiesCreated.join(', ')}`
         : `Created ${result.newRelations.length} relation(s)`
     };
     
