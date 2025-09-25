@@ -307,7 +307,7 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
       entities: result.newEntities,
       created: result.entitiesCreated,
       updated: result.entitiesUpdated,
-      message: `Processed ${result.newEntities.length} entit(ies): ${result.entitiesCreated.length} created, ${result.entitiesUpdated.length} updated`
+      message: `Processed ${result.newEntities.length} entities: ${result.entitiesCreated.length} created, ${result.entitiesUpdated.length} updated`
     };
     
     return response;
