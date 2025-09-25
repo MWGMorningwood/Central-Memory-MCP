@@ -212,7 +212,7 @@ export async function createEntities(
     context.log('DEBUG - createEntities entities type:', typeof args.entities);
     
     if (!args.entities) {
-      throw new Error('entities parameter is required. Please provide an entity object with name, entityType, and observations fields. Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer"]}');
+      throw new Error('entities parameter is required. Please provide an entity object or an array of entity objects, each with name, entityType, and observations fields. Example: [{"name": "Alice", "entityType": "Person", "observations": ["Software engineer"]}]');
     }
     
     // Handle both string (JSON) and object inputs
