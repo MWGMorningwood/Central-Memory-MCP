@@ -13,7 +13,11 @@
   ],
   "scripts": {
     "build": "tsc",
-    "start": "func start --verbose"
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "prestart": "npm run clean && npm run build",
+    "start": "func start --verbose",
+    "test": "echo \"No tests yet...\""
   },
   "dependencies": {
     "@azure/data-tables": "^13.3.1",

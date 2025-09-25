@@ -2,7 +2,14 @@ import { InvocationContext } from '@azure/functions';
 import { Entity, Relation, KnowledgeGraph } from '../types/index.js';
 import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
-import { getWorkspaceId, getUserId, BatchUtils, executeGraphOperation } from './utils.js';
+import { 
+  getWorkspaceId,
+  getUserId,
+  BatchUtils,
+  executeGraphOperation,
+  executeReadOnlyGraphOperation,
+  executeWithErrorHandling
+} from './utils.js';
 import { calculateEntitySimilarity, mergeEntitiesInGraph, detectDuplicateEntities as detectDuplicateEntitiesInGraph } from './entities.js';
 
 // =============================================================================
@@ -233,34 +240,6 @@ function validateArrayArg(arg: any, argName: string): void {
   }
 }
 
-/**
- * Helper function to execute with error handling
- */
-async function executeWithErrorHandling<T>(
-  operation: () => Promise<T>,
-  errorMessage: string
-): Promise<string> {
-  try {
-    const result = await operation();
-    return JSON.stringify(result);
-  } catch (error) {
-    const logger = new Logger();
-    logger.error(errorMessage, error);
-    throw error;
-  }
-}
-
-/**
- * Helper function to execute read-only graph operations
- */
-async function executeReadOnlyGraphOperation<T>(
-  storageService: StorageService,
-  operation: (graph: KnowledgeGraph) => T
-): Promise<T> {
-  const graph = await storageService.loadGraph();
-  return operation(graph);
-}
-
 // =============================================================================
 // EXPORTED HANDLER FUNCTIONS
 // =============================================================================
@@ -268,7 +247,7 @@ async function executeReadOnlyGraphOperation<T>(
 /**
  * Read the entire centralized knowledge graph
  */
-export async function readGraph(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function readGraph(_toolArguments: unknown, context: InvocationContext): Promise<KnowledgeGraph> {
   return executeWithErrorHandling(async () => {
     const workspaceId = getWorkspaceId(context);
     
@@ -287,7 +266,10 @@ export async function readGraph(_toolArguments: unknown, context: InvocationCont
 /**
  * Get statistics about the centralized knowledge graph
  */
-export async function getStats(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function getStats(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<ReturnType<typeof generateGraphStats>> {
   return executeWithErrorHandling(async () => {
     const workspaceId = getWorkspaceId(context);
     
@@ -296,33 +278,7 @@ export async function getStats(_toolArguments: unknown, context: InvocationConte
     
     const stats = await executeReadOnlyGraphOperation(
       storageService,
-      (graph) => {
-        const entityTypes: Record<string, number> = {};
-        const relationTypes: Record<string, number> = {};
-        
-        // Count entity types
-        graph.entities.forEach(entity => {
-          entityTypes[entity.entityType] = (entityTypes[entity.entityType] || 0) + 1;
-        });
-        
-        // Count relation types
-        graph.relations.forEach(relation => {
-          relationTypes[relation.relationType] = (relationTypes[relation.relationType] || 0) + 1;
-        });
-        
-        // Calculate average observations per entity
-        const totalObservations = graph.entities.reduce((sum, entity) => sum + entity.observations.length, 0);
-        const averageObservationsPerEntity = graph.entities.length > 0 ? totalObservations / graph.entities.length : 0;
-        
-        return {
-          totalEntities: graph.entities.length,
-          totalRelations: graph.relations.length,
-          entityTypes,
-          relationTypes,
-          averageObservationsPerEntity,
-          workspaceId
-        };
-      }
+      (graph) => generateGraphStats(graph, workspaceId)
     );
     
     return stats;
@@ -332,7 +288,10 @@ export async function getStats(_toolArguments: unknown, context: InvocationConte
 /**
  * Clear all memory data for a workspace
  */
-export async function clearMemory(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function clearMemory(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<{ success: boolean; message: string }> {
   return executeWithErrorHandling(async () => {
     const workspaceId = getWorkspaceId(context);
     
@@ -348,7 +307,14 @@ export async function clearMemory(_toolArguments: unknown, context: InvocationCo
 /**
  * Get temporal events - find what happened when in the memory system
  */
-export async function getTemporalEvents(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function getTemporalEvents(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<{
+  entities: (Entity & { actionType: 'created' | 'updated' })[];
+  relations: (Relation & { actionType: 'created' | 'updated' })[];
+  timeRange: { start: string; end: string };
+}> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ 
       startTime?: string; 
@@ -381,7 +347,10 @@ export async function getTemporalEvents(_toolArguments: unknown, context: Invoca
 /**
  * Detect and identify potential duplicate entities in the knowledge graph
  */
-export async function detectDuplicateEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function detectDuplicateEntities(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<ReturnType<typeof detectDuplicateEntitiesInGraph>> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ threshold?: string; workspaceId?: string }>(context);
     const threshold = args.threshold ? parseFloat(args.threshold) : 0.8;
@@ -402,7 +371,10 @@ export async function detectDuplicateEntities(_toolArguments: unknown, context: 
 /**
  * Merge duplicate entities into a single target entity
  */
-export async function mergeEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function mergeEntities(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Entity> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ 
       targetEntityName?: string; 
@@ -461,7 +433,10 @@ export async function mergeEntities(_toolArguments: unknown, context: Invocation
 /**
  * Execute multiple operations in a single batch for performance
  */
-export async function executeBatchOperations(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function executeBatchOperations(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<{ successful: number; failed: number; errors: string[]; results: any[] }> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ operations?: any; workspaceId?: string }>(context);
     
@@ -500,14 +475,24 @@ export async function executeBatchOperations(_toolArguments: unknown, context: I
       await storageService.saveGraph(result.updatedGraph);
     }
     
-    return { successful: result.successful, failed: result.failed, errors: result.errors, results: result.results };
+    const batchResults = result.results ?? [];
+    const successful = batchResults.filter((entry: any) => entry?.success).length;
+    const failed = batchResults.length - successful;
+    const errors = batchResults
+      .filter((entry: any) => !entry?.success && entry?.error)
+      .map((entry: any) => entry.error);
+
+    return { successful, failed, errors, results: batchResults };
   }, 'Failed to execute batch operations');
 }
 
 /**
  * Get statistics about the memory usage and entity/relationship counts for a specific user
  */
-export async function getUserStats(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function getUserStats(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<ReturnType<typeof generateUserStats>> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ userId?: string; workspaceId?: string }>(context);
     const userId = args.userId || getUserId(context);
@@ -518,44 +503,7 @@ export async function getUserStats(_toolArguments: unknown, context: InvocationC
     
     const stats = await executeReadOnlyGraphOperation(
       storageService,
-      (graph) => {
-        const userEntities = graph.entities.filter(e => e.createdBy === userId);
-        const userRelations = graph.relations.filter(r => r.createdBy === userId);
-        
-        // Get recent activity (last 30 days)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        const recentEntities = userEntities.filter(e => 
-          e.createdAt && new Date(e.createdAt) > thirtyDaysAgo
-        );
-        const recentRelations = userRelations.filter(r => 
-          r.createdAt && new Date(r.createdAt) > thirtyDaysAgo
-        );
-        
-        // Count entity types
-        const topEntityTypes: Record<string, number> = {};
-        userEntities.forEach(entity => {
-          topEntityTypes[entity.entityType] = (topEntityTypes[entity.entityType] || 0) + 1;
-        });
-        
-        // Count relation types
-        const topRelationTypes: Record<string, number> = {};
-        userRelations.forEach(relation => {
-          topRelationTypes[relation.relationType] = (topRelationTypes[relation.relationType] || 0) + 1;
-        });
-        
-        return {
-          entitiesCreated: userEntities.length,
-          relationsCreated: userRelations.length,
-          recentActivity: {
-            entities: recentEntities,
-            relations: recentRelations
-          },
-          topEntityTypes,
-          topRelationTypes
-        };
-      }
+      (graph) => generateUserStats(graph, userId)
     );
     
     return stats;

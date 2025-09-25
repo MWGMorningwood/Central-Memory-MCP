@@ -2,39 +2,38 @@ import { InvocationContext } from '@azure/functions';
 import { Entity, KnowledgeGraph } from '../types/index.js';
 import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
-import { 
-  getMcpArgs, 
-  parseJsonArg, 
-  validateArrayArg, 
+import {
+  getMcpArgs,
+  validateArrayArg,
   executeGraphOperation,
   executeGraphOperationWithReplacement,
-  getUserContext,
-  enrichEntityWithUserContext,
+  executeWithErrorHandling,
   getWorkspaceId,
   getUserId,
-  enhanceEntitiesWithUser 
+  enhanceEntitiesWithUser
 } from './utils.js';
+
+type CreateEntitiesResult = {
+  entities: Entity[];
+  created: string[];
+  updated: string[];
+  message: string;
+};
+
+type ObservationResult = {
+  entity: Entity;
+  created: boolean;
+  message: string;
+};
+
+type DeleteEntityResult = {
+  success: boolean;
+  message: string;
+};
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
-
-/**
- * Execute operation with standardized error handling
- */
-async function executeWithErrorHandling<T>(
-  operation: () => Promise<T>,
-  errorMessage: string
-): Promise<string> {
-  try {
-    const result = await operation();
-    return JSON.stringify(result);
-  } catch (error) {
-    const logger = new Logger();
-    logger.error(errorMessage, error);
-    throw error;
-  }
-}
 
 // =============================================================================
 // ENTITY UTILITIES
@@ -200,7 +199,10 @@ export function mergeEntitiesInGraph(
 /**
  * Create multiple new entities in the centralized knowledge graph
  */
-export async function createEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function createEntities(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<CreateEntitiesResult> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entities?: any; workspaceId?: string }>(context);
     
@@ -303,7 +305,7 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
       (result) => result.newEntities.length > 0
     );
     
-    const response = {
+    const response: CreateEntitiesResult = {
       entities: result.newEntities,
       created: result.entitiesCreated,
       updated: result.entitiesUpdated,
@@ -317,7 +319,10 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
 /**
  * Search for entities by name or type
  */
-export async function searchEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function searchEntities(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Entity[]> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ name?: string; entityType?: string; workspaceId?: string }>(context);
     const workspaceId = getWorkspaceId(context);
@@ -341,7 +346,10 @@ export async function searchEntities(_toolArguments: unknown, context: Invocatio
 /**
  * Add a new observation to an existing entity, with auto-creation if entity doesn't exist
  */
-export async function addObservation(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function addObservation(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<ObservationResult> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entityName?: string; observation?: string; entityType?: string; workspaceId?: string }>(context);
     
@@ -393,7 +401,7 @@ export async function addObservation(_toolArguments: unknown, context: Invocatio
       () => true
     );
     
-    const response = {
+    const response: ObservationResult = {
       entity: result.updatedEntity,
       created: result.entityCreated,
       message: result.entityCreated 
@@ -408,7 +416,10 @@ export async function addObservation(_toolArguments: unknown, context: Invocatio
 /**
  * Delete an entity and all its relations
  */
-export async function deleteEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function deleteEntity(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<DeleteEntityResult> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entityName?: string; workspaceId?: string }>(context);
     
@@ -451,7 +462,10 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
 /**
  * Update an existing entity with new observations or metadata
  */
-export async function updateEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function updateEntity(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Entity> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entityName?: string; newObservations?: any; metadata?: any; workspaceId?: string }>(context);
     
