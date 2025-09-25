@@ -1,27 +1,30 @@
 {
-    "servers": {
-        "context7": {
-            "type": "http",
-            "url": "https://mcp.context7.com/mcp"
-        },
-        "microsoft.docs.mcp": {
-            "type": "http",
-            "url": "https://learn.microsoft.com/api/mcp"
-        },
-        "sequential-thinking": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "@modelcontextprotocol/server-sequential-thinking"
-            ]
-        },
-        "memory-debug": {
-            "type": "http",
-            "url": "http://localhost:7071/runtime/webhooks/mcp/sse?workspace=Central-Memory-MCP"
-        },
-        "memory-prod": {
-			"type": "http",
-			"url": "https://yourfunctionapp.azurewebsites.net/runtime/webhooks/mcp/sse?workspace=Central-Memory-MCP&code=yourMcpExtensionKey"
-		}
+  "inputs": [
+    {
+      "id": "context7-mcp-api-key",
+      "description": "Context7 MCP API Key",
+      "type": "promptString",
+      "password": true
     }
+  ],
+  "servers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "${input:context7-mcp-api-key}"
+      }
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "memory-debug": {
+      "type": "http",
+      "url": "http://localhost:7071/runtime/webhooks/mcp"
+    }
+  }
 }

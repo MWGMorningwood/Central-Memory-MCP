@@ -1,8 +1,8 @@
 import { InvocationContext } from '@azure/functions';
-import { Relation, KnowledgeGraph } from '../types/index.js';
+import { Relation, KnowledgeGraph, Entity } from '../types/index.js';
 import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
-import { getWorkspaceId, getUserId, executeGraphOperation } from './utils.js';
+import { getWorkspaceId, getUserId, executeGraphOperation, executeWithErrorHandling } from './utils.js';
 
 // =============================================================================
 // RELATION UTILITIES
@@ -140,23 +140,6 @@ function enhanceRelationsWithUser(relations: any[], userId: string): any[] {
 }
 
 /**
- * Helper function to execute graph operations with error handling
- */
-async function executeWithErrorHandling<T>(
-  operation: () => Promise<T>,
-  errorMessage: string
-): Promise<string> {
-  try {
-    const result = await operation();
-    return JSON.stringify(result);
-  } catch (error) {
-    const logger = new Logger();
-    logger.error(errorMessage, error);
-    throw error;
-  }
-}
-
-/**
  * Helper function to execute read-only graph operations
  */
 async function executeReadOnlyGraphOperation<T>(
@@ -173,8 +156,12 @@ async function executeReadOnlyGraphOperation<T>(
 
 /**
  * Create multiple new relations between entities in the knowledge graph
+ * Automatically creates missing entities as "Unknown" type
  */
-export async function createRelations(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function createRelations(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<{ relations: Relation[]; entitiesCreated: string[]; message: string }> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ relations?: any; workspaceId?: string }>(context);
     
@@ -182,6 +169,10 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
     context.log('DEBUG - createRelations raw args:', JSON.stringify(args, null, 2));
     context.log('DEBUG - createRelations relations param:', args.relations);
     context.log('DEBUG - createRelations relations type:', typeof args.relations);
+    
+    if (!args.relations) {
+      throw new Error('relations parameter is required. Please provide a relation object with from, to, and relationType fields.');
+    }
     
     // Handle both string (JSON) and object inputs
     let relationsData: any;
@@ -193,6 +184,13 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
     
     const relations = Array.isArray(relationsData) ? relationsData : [relationsData];
     validateArrayArg(relations, 'relations');
+    
+    // Validate relation structure
+    for (const relation of relations) {
+      if (!relation.from || !relation.to || !relation.relationType) {
+        throw new Error('Each relation must have from, to, and relationType fields. Example: {"from": "Alice", "to": "Project", "relationType": "worksOn"}');
+      }
+    }
     
     const workspaceId = getWorkspaceId(context);
     const userId = getUserId(context);
@@ -208,38 +206,97 @@ export async function createRelations(_toolArguments: unknown, context: Invocati
       storageService,
       (graph) => {
         const now = new Date().toISOString();
-        
+        const existingEntityNames = new Set(graph.entities.map(entity => entity.name));
+        const uniqueCreated = new Set<string>();
+        const autoCreatedEntities: Entity[] = [];
+
+        for (const relation of enhancedRelations) {
+          if (!existingEntityNames.has(relation.from)) {
+            const newEntity: Entity = {
+              name: relation.from,
+              entityType: 'Unknown',
+              observations: [`Auto-created as part of relation to ${relation.to}`],
+              createdBy: userId,
+              createdAt: now,
+              updatedAt: now
+            };
+            autoCreatedEntities.push(newEntity);
+            existingEntityNames.add(relation.from);
+            uniqueCreated.add(relation.from);
+            context.log(`Auto-created entity '${relation.from}' as Unknown type`);
+          }
+
+          if (!existingEntityNames.has(relation.to)) {
+            const newEntity: Entity = {
+              name: relation.to,
+              entityType: 'Unknown',
+              observations: [`Auto-created as part of relation from ${relation.from}`],
+              createdBy: userId,
+              createdAt: now,
+              updatedAt: now
+            };
+            autoCreatedEntities.push(newEntity);
+            existingEntityNames.add(relation.to);
+            uniqueCreated.add(relation.to);
+            context.log(`Auto-created entity '${relation.to}' as Unknown type`);
+          }
+        }
+
+        const existingRelations = new Set(
+          graph.relations.map(rel => `${rel.from}::${rel.to}::${rel.relationType}`)
+        );
         const newRelations = enhancedRelations
-          .filter(r => !graph.relations.some(existing => 
-            existing.from === r.from && 
-            existing.to === r.to && 
-            existing.relationType === r.relationType
-          ))
+          .filter(r => {
+            const key = `${r.from}::${r.to}::${r.relationType}`;
+            if (existingRelations.has(key)) {
+              return false;
+            }
+            existingRelations.add(key);
+            return true;
+          })
           .map(r => ({
             ...r,
             createdAt: now,
             updatedAt: now,
-            strength: r.strength || 0.8
+            strength: r.strength ?? 0.8
           }));
 
         const updatedGraph = {
           ...graph,
+          entities: autoCreatedEntities.length > 0
+            ? [...graph.entities, ...autoCreatedEntities]
+            : graph.entities,
           relations: [...graph.relations, ...newRelations]
         };
 
-        return { newRelations, updatedGraph };
+        return {
+          newRelations,
+          entitiesCreated: Array.from(uniqueCreated),
+          updatedGraph
+        };
       },
-      (result) => result.newRelations.length > 0
+      (result) => result.newRelations.length > 0 || result.entitiesCreated.length > 0
     );
     
-    return result.newRelations;
+    const response = {
+      relations: result.newRelations,
+      entitiesCreated: result.entitiesCreated,
+      message: result.entitiesCreated.length > 0 
+        ? `Created ${result.newRelations.length} relation(s) and auto-created ${result.entitiesCreated.length} missing entities: ${result.entitiesCreated.join(', ')}`
+        : `Created ${result.newRelations.length} relation(s)`
+    };
+    
+    return response;
   }, 'Failed to create relations');
 }
 
 /**
  * Search for relations by entity names or type
  */
-export async function searchRelations(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function searchRelations(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Relation[]> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ from?: string; to?: string; relationType?: string; workspaceId?: string }>(context);
     const workspaceId = getWorkspaceId(context);
@@ -266,7 +323,10 @@ export async function searchRelations(_toolArguments: unknown, context: Invocati
 /**
  * Search for relations created by a specific user
  */
-export async function searchRelationsByUser(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function searchRelationsByUser(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Relation[]> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ userId?: string; relationType?: string; workspaceId?: string }>(context);
     const workspaceId = getWorkspaceId(context);

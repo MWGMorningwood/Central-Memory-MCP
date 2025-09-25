@@ -51,10 +51,9 @@ export function validateArrayArg(arg: any, argName: string): void {
 export async function executeWithErrorHandling<T>(
   operation: () => Promise<T>,
   errorContext?: string
-): Promise<string> {
+): Promise<T> {
   try {
-    const result = await operation();
-    return JSON.stringify(result);
+    return await operation();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const contextualError = errorContext ? `${errorContext}: ${errorMessage}` : errorMessage;

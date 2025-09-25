@@ -2,39 +2,38 @@ import { InvocationContext } from '@azure/functions';
 import { Entity, KnowledgeGraph } from '../types/index.js';
 import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
-import { 
-  getMcpArgs, 
-  parseJsonArg, 
-  validateArrayArg, 
+import {
+  getMcpArgs,
+  validateArrayArg,
   executeGraphOperation,
   executeGraphOperationWithReplacement,
-  getUserContext,
-  enrichEntityWithUserContext,
+  executeWithErrorHandling,
   getWorkspaceId,
   getUserId,
-  enhanceEntitiesWithUser 
+  enhanceEntitiesWithUser
 } from './utils.js';
+
+type CreateEntitiesResult = {
+  entities: Entity[];
+  created: string[];
+  updated: string[];
+  message: string;
+};
+
+type ObservationResult = {
+  entity: Entity;
+  created: boolean;
+  message: string;
+};
+
+type DeleteEntityResult = {
+  success: boolean;
+  message: string;
+};
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
-
-/**
- * Execute operation with standardized error handling
- */
-async function executeWithErrorHandling<T>(
-  operation: () => Promise<T>,
-  errorMessage: string
-): Promise<string> {
-  try {
-    const result = await operation();
-    return JSON.stringify(result);
-  } catch (error) {
-    const logger = new Logger();
-    logger.error(errorMessage, error);
-    throw error;
-  }
-}
 
 // =============================================================================
 // ENTITY UTILITIES
@@ -200,7 +199,10 @@ export function mergeEntitiesInGraph(
 /**
  * Create multiple new entities in the centralized knowledge graph
  */
-export async function createEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function createEntities(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<CreateEntitiesResult> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entities?: any; workspaceId?: string }>(context);
     
@@ -210,7 +212,7 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
     context.log('DEBUG - createEntities entities type:', typeof args.entities);
     
     if (!args.entities) {
-      throw new Error('entities parameter is required');
+      throw new Error('entities parameter is required. Please provide an entity object or an array of entity objects, each with name, entityType, and observations fields. Example: [{"name": "Alice", "entityType": "Person", "observations": ["Software engineer"]}]');
     }
     
     // Handle both string (JSON) and object inputs
@@ -223,6 +225,26 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
     
     const entities = Array.isArray(entitiesData) ? entitiesData : [entitiesData];
     validateArrayArg(entities, 'entities');
+    
+    // Validate entity structure with helpful error messages
+    for (let i = 0; i < entities.length; i++) {
+      const entity = entities[i];
+      if (!entity.name || typeof entity.name !== 'string') {
+        throw new Error(`Entity ${i + 1} must have a 'name' field (string). Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer"]}`);
+      }
+      if (!entity.entityType || typeof entity.entityType !== 'string') {
+        throw new Error(`Entity ${i + 1} must have an 'entityType' field (string). Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer"]}`);
+      }
+      if (!entity.observations) {
+        // Auto-create empty observations array if missing
+        entity.observations = [];
+        context.log(`Auto-created empty observations array for entity '${entity.name}'`);
+      } else if (!Array.isArray(entity.observations)) {
+        throw new Error(`Entity ${i + 1} 'observations' must be an array of strings. Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer", "Works on React"]}`);
+      } else if (!entity.observations.every(obs => typeof obs === 'string')) {
+        throw new Error(`Entity ${i + 1} 'observations' must only contain strings. Example: {"name": "Alice", "entityType": "Person", "observations": ["Software engineer", "Works on React"]}`);
+      }
+    }
     
     const workspaceId = getWorkspaceId(context);
     const userId = getUserId(context);
@@ -239,6 +261,8 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
       (graph) => {
         const newEntities: Entity[] = [];
         const updatedEntities = [...graph.entities];
+        const entitiesCreated: string[] = [];
+        const entitiesUpdated: string[] = [];
 
         for (const entityData of enhancedEntities) {
           // Check if entity already exists
@@ -246,9 +270,15 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
           
           if (existingEntity) {
             // Update existing entity with new observations
+            const oldObservationCount = existingEntity.observations.length;
             existingEntity.observations = [...new Set([...existingEntity.observations, ...entityData.observations])];
             existingEntity.updatedAt = new Date().toISOString();
             newEntities.push(existingEntity);
+            
+            if (existingEntity.observations.length > oldObservationCount) {
+              entitiesUpdated.push(existingEntity.name);
+              context.log(`Updated existing entity '${existingEntity.name}' with new observations`);
+            }
           } else {
             // Create new entity
             const newEntity: Entity = {
@@ -262,25 +292,39 @@ export async function createEntities(_toolArguments: unknown, context: Invocatio
             
             updatedEntities.push(newEntity);
             newEntities.push(newEntity);
+            entitiesCreated.push(newEntity.name);
+            context.log(`Created new entity '${newEntity.name}' with type '${newEntity.entityType}'`);
           }
         }
 
         return {
           newEntities,
+          entitiesCreated,
+          entitiesUpdated,
           updatedGraph: { entities: updatedEntities, relations: graph.relations }
         };
       },
       (result) => result.newEntities.length > 0
     );
     
-    return result.newEntities;
+    const response: CreateEntitiesResult = {
+      entities: result.newEntities,
+      created: result.entitiesCreated,
+      updated: result.entitiesUpdated,
+      message: `Processed ${result.newEntities.length} entities: ${result.entitiesCreated.length} created, ${result.entitiesUpdated.length} updated`
+    };
+    
+    return response;
   }, 'Failed to create entities');
 }
 
 /**
  * Search for entities by name or type
  */
-export async function searchEntities(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function searchEntities(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Entity[]> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ name?: string; entityType?: string; workspaceId?: string }>(context);
     const workspaceId = getWorkspaceId(context);
@@ -302,14 +346,17 @@ export async function searchEntities(_toolArguments: unknown, context: Invocatio
 }
 
 /**
- * Add a new observation to an existing entity
+ * Add a new observation to an existing entity, with auto-creation if entity doesn't exist
  */
-export async function addObservation(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function addObservation(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<ObservationResult> {
   return executeWithErrorHandling(async () => {
-    const args = getMcpArgs<{ entityName?: string; observation?: string; workspaceId?: string }>(context);
+    const args = getMcpArgs<{ entityName?: string; observation?: string; entityType?: string; workspaceId?: string }>(context);
     
     if (!args.entityName || !args.observation) {
-      throw new Error('entityName and observation are required');
+      throw new Error('entityName and observation are required. Please provide both parameters.');
     }
     
     const workspaceId = getWorkspaceId(context);
@@ -321,9 +368,24 @@ export async function addObservation(_toolArguments: unknown, context: Invocatio
     const result = await executeGraphOperation(
       storageService,
       (graph) => {
-        const entity = graph.entities.find(e => e.name === args.entityName);
+        let entity = graph.entities.find(e => e.name === args.entityName);
+        let entityCreated = false;
+        
         if (!entity) {
-          throw new Error(`Entity '${args.entityName}' not found`);
+          // Auto-create entity if it doesn't exist
+          const entityType = args.entityType || 'Unknown';
+          entity = {
+            name: args.entityName!,
+            entityType: entityType,
+            observations: [],
+            createdBy: userId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          graph.entities.push(entity);
+          entityCreated = true;
+          
+          context.log(`Auto-created entity '${args.entityName}' with type '${entityType}'`);
         }
 
         // Add observation if not already present
@@ -334,20 +396,32 @@ export async function addObservation(_toolArguments: unknown, context: Invocatio
 
         return {
           updatedEntity: entity,
+          entityCreated: entityCreated,
           updatedGraph: { entities: graph.entities, relations: graph.relations }
         };
       },
       () => true
     );
     
-    return result.updatedEntity;
+    const response: ObservationResult = {
+      entity: result.updatedEntity,
+      created: result.entityCreated,
+      message: result.entityCreated 
+        ? `Created new entity '${args.entityName}' and added observation` 
+        : `Added observation to existing entity '${args.entityName}'`
+    };
+    
+    return response;
   }, 'Failed to add observation');
 }
 
 /**
  * Delete an entity and all its relations
  */
-export async function deleteEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function deleteEntity(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<DeleteEntityResult> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entityName?: string; workspaceId?: string }>(context);
     
@@ -390,7 +464,10 @@ export async function deleteEntity(_toolArguments: unknown, context: InvocationC
 /**
  * Update an existing entity with new observations or metadata
  */
-export async function updateEntity(_toolArguments: unknown, context: InvocationContext): Promise<string> {
+export async function updateEntity(
+  _toolArguments: unknown,
+  context: InvocationContext
+): Promise<Entity> {
   return executeWithErrorHandling(async () => {
     const args = getMcpArgs<{ entityName?: string; newObservations?: any; metadata?: any; workspaceId?: string }>(context);
     
