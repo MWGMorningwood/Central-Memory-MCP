@@ -4,90 +4,6 @@ import { StorageService } from './storageService.js';
 import { Logger } from './logger.js';
 import { getWorkspaceId, getUserId, executeGraphOperation, executeWithErrorHandling } from './utils.js';
 
-// =============================================================================
-// RELATION UTILITIES
-// =============================================================================
-
-/**
- * Update relation strength
- */
-export function updateRelationStrength(
-  graph: KnowledgeGraph,
-  from: string,
-  to: string,
-  relationType: string,
-  strength: number
-): { updatedRelation: Relation; updatedGraph: KnowledgeGraph } {
-  const relation = graph.relations.find(r => 
-    r.from === from && r.to === to && r.relationType === relationType
-  );
-  
-  if (!relation) {
-    throw new Error(`Relation from '${from}' to '${to}' with type '${relationType}' not found`);
-  }
-
-  relation.strength = Math.max(0, Math.min(1, strength)); // Clamp between 0 and 1
-  relation.updatedAt = new Date().toISOString();
-
-  return {
-    updatedRelation: relation,
-    updatedGraph: { entities: graph.entities, relations: graph.relations }
-  };
-}
-
-/**
- * Delete a relation
- */
-export function deleteRelationFromGraph(
-  graph: KnowledgeGraph,
-  from: string,
-  to: string,
-  relationType: string
-): { deleted: boolean; updatedGraph: KnowledgeGraph } {
-  const relationIndex = graph.relations.findIndex(r => 
-    r.from === from && r.to === to && r.relationType === relationType
-  );
-  
-  if (relationIndex === -1) {
-    throw new Error(`Relation from '${from}' to '${to}' with type '${relationType}' not found`);
-  }
-
-  const updatedRelations = [...graph.relations];
-  updatedRelations.splice(relationIndex, 1);
-
-  return {
-    deleted: true,
-    updatedGraph: { entities: graph.entities, relations: updatedRelations }
-  };
-}
-
-/**
- * Get all relations for a specific entity
- */
-export function getEntityRelations(
-  relations: Relation[],
-  entityName: string
-): { incoming: Relation[]; outgoing: Relation[] } {
-  const incoming = relations.filter(r => r.to === entityName);
-  const outgoing = relations.filter(r => r.from === entityName);
-  
-  return { incoming, outgoing };
-}
-
-/**
- * Find strongly connected relations (above a threshold)
- */
-export function findStrongRelations(
-  relations: Relation[],
-  threshold: number = 0.8
-): Relation[] {
-  return relations.filter(r => (r.strength || 0.8) >= threshold);
-}
-
-// =============================================================================
-// RELATION HANDLER FUNCTIONS
-// =============================================================================
-
 /**
  * Helper function to get MCP arguments with error handling
  */
@@ -97,25 +13,6 @@ function getMcpArgs<T>(context: InvocationContext): T {
     throw new Error('Invalid MCP arguments');
   }
   return args as T;
-}
-
-/**
- * Helper function to parse JSON arguments
- */
-function parseJsonArg(arg: any, argName: string): any {
-  if (!arg) {
-    throw new Error(`${argName} is required`);
-  }
-  
-  if (typeof arg === 'string') {
-    try {
-      return JSON.parse(arg);
-    } catch (error) {
-      throw new Error(`Invalid JSON in ${argName}: ${error}`);
-    }
-  }
-  
-  return arg;
 }
 
 /**
@@ -320,32 +217,3 @@ export async function searchRelations(
   }, 'Failed to search relations');
 }
 
-/**
- * Search for relations created by a specific user
- */
-export async function searchRelationsByUser(
-  _toolArguments: unknown,
-  context: InvocationContext
-): Promise<Relation[]> {
-  return executeWithErrorHandling(async () => {
-    const args = getMcpArgs<{ userId?: string; relationType?: string; workspaceId?: string }>(context);
-    const workspaceId = getWorkspaceId(context);
-    const userId = args.userId || getUserId(context);
-    
-    const logger = new Logger(context);
-    const storageService = await StorageService.createForWorkspace(workspaceId, logger);
-    
-    const results = await executeReadOnlyGraphOperation(
-      storageService,
-      (graph) => {
-        return graph.relations.filter(relation => {
-          const matchesUser = relation.createdBy === userId;
-          const matchesType = !args.relationType || relation.relationType.toLowerCase().includes(args.relationType.toLowerCase());
-          return matchesUser && matchesType;
-        });
-      }
-    );
-    
-    return results;
-  }, 'Failed to search relations by user');
-}

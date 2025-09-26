@@ -1,4 +1,5 @@
 # Central Memory MCP Server
+
 [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/MWGMorningwood/Central-Memory-MCP)](https://archestra.ai/mcp-catalog/mwgmorningwood__central-memory-mcp)
 
 Model Context Protocol (MCP) memory server built with Azure Functions and TypeScript, providing persistent knowledge graph storage for AI assistants in VS Code.  
@@ -53,6 +54,7 @@ curl http://localhost:7071/api/health
 ```
 
 **Key Features for Better LLM Usability:**
+
 - ✅ Auto-creation of missing entities when adding observations or relations
 - ✅ Helpful error messages with examples when validation fails  
 - ✅ Workflow guidance to view graph first, then search, then create
@@ -74,20 +76,12 @@ curl http://localhost:7071/api/health
 - `clear_memory` - Clear all workspace data
 
 **Recommended Workflow:**
+
 1. Use `read_graph` to understand existing data
 2. Use `search_entities` to check for existing entities
 3. Use `create_entities` to add new entities
 4. Use `create_relations` to connect entities
 5. Use `add_observation` to add new information
-
-**Advanced Features:**
-
-- `get_temporal_events` - Time-based activity tracking
-- `merge_entities` - Merge duplicate entities
-- `detect_duplicate_entities` - Find potential duplicates
-- `execute_batch_operations` - Batch multiple operations
-- `get_user_stats` - Get user-specific statistics
-- `search_relations_by_user` - Find relations by user
 
 ## 🏗️ Architecture
 

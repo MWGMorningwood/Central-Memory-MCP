@@ -14,12 +14,3 @@ export * from './stats.js';
 
 // Operation parameter types
 export * from './operations.js';
-
-// Temporal query types
-export * from './temporal.js';
-
-// Batch operation types
-export * from './batch.js';
-
-// Storage types
-export * from './storage.js';
